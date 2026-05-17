@@ -66,15 +66,74 @@ export function centToEurEn(cent: number): string {
   return sign + eStr + "." + c.toString().padStart(2, "0");
 }
 
+/**
+ * Banknot dağıtımı — rastgele ama gerçekçi.
+ *
+ * Her denomination (100, 50, 20, 10, 5) için kalan bütçeye sığabilenin
+ * rastgele bir oranı (%55–%100) kadar adet alınır; küçük denomination'lar
+ * artan miktarı toplar. En küçük (5 €) kalanın tamamını alır.
+ *
+ * — Toplam == bütçe (kalan cent madeni paraya aktarılır)
+ * — Bütçe yeterliyse ≥2 farklı denomination > 0 garanti edilir
+ */
 function distributeBanknotes(budgetCent: number): { counts: Counts; remainderCent: number } {
   const counts: Counts = { 50000: 0, 20000: 0, 10000: 0, 5000: 0, 2000: 0, 1000: 0, 500: 0 };
   let remaining = budgetCent;
-  for (const d of ALLOWED_BANKNOTE_CENTS) {
-    const c = Math.floor(remaining / d);
-    counts[d] = c;
-    remaining -= c * d;
+  if (remaining < 500) return { counts, remainderCent: remaining };
+
+  const denoms = ALLOWED_BANKNOTE_CENTS; // [10000, 5000, 2000, 1000, 500]
+  const rand = (min: number, max: number) => min + Math.random() * (max - min);
+
+  for (let i = 0; i < denoms.length; i++) {
+    const d = denoms[i]!;
+    if (remaining < d) continue;
+    const maxFit = Math.floor(remaining / d);
+    let count: number;
+    if (i === denoms.length - 1) {
+      // 5 € — kalanın hepsini al
+      count = maxFit;
+    } else {
+      const ratio = rand(0.55, 1.0);
+      count = Math.floor(maxFit * ratio);
+      // Tek denomination'a düşme riskini azalt: en büyük denomination
+      // her zaman maxFit'in altında kalsın (en az 1 birim küçüklere bırakılsın)
+      if (i === 0 && count === maxFit && maxFit > 1) count = maxFit - 1;
+    }
+    counts[d] = count;
+    remaining -= count * d;
   }
+
+  enforceMinTwoBanknotes(counts, budgetCent);
   return { counts, remainderCent: remaining };
+}
+
+/**
+ * Tek banknot denomination'ına düşme durumunda 1 birim alıp daha küçük
+ * denomination karışımına çevirir. Toplam korunur.
+ */
+function enforceMinTwoBanknotes(counts: Counts, budget: number) {
+  const nonzero = [10000, 5000, 2000, 1000, 500].filter((d) => (counts[d] ?? 0) > 0);
+  if (nonzero.length >= 2) return;
+  if (budget < 1000) return;
+  const d = nonzero[0]!;
+  if (d === 10000 && counts[10000]! >= 1) {
+    // 100 € → 1×50 + 2×20 + 1×10 = 100
+    counts[10000]!--;
+    counts[5000] = (counts[5000] || 0) + 1;
+    counts[2000] = (counts[2000] || 0) + 2;
+    counts[1000] = (counts[1000] || 0) + 1;
+  } else if (d === 5000 && counts[5000]! >= 1) {
+    // 50 € → 2×20 + 1×10 = 50
+    counts[5000]!--;
+    counts[2000] = (counts[2000] || 0) + 2;
+    counts[1000] = (counts[1000] || 0) + 1;
+  } else if (d === 2000 && counts[2000]! >= 1) {
+    // 20 € → 1×10 + 2×5 = 20
+    counts[2000]!--;
+    counts[1000] = (counts[1000] || 0) + 1;
+    counts[500]  = (counts[500]  || 0) + 2;
+  }
+  // 10 € ve 5 € tek denomination olarak kabul — sığabilecek başka banknot yok
 }
 
 /**

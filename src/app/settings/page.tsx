@@ -16,7 +16,7 @@ export default async function SettingsPage() {
   return (
     <>
       <Nav />
-      <main className="max-w-3xl mx-auto px-4 py-6">
+      <main className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         <SettingsClient initial={u!} />
       </main>
     </>

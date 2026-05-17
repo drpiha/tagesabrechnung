@@ -27,8 +27,15 @@ body {
 .label {
   @apply block text-sm font-medium text-slate-700 mb-1;
 }
+.table-scroll {
+  @apply -mx-3 sm:mx-0 overflow-x-auto;
+}
+.table-scroll > table {
+  @apply min-w-[520px];
+}
 @media print {
   body { background: white; }
   .no-print { display: none !important; }
   .card { box-shadow: none; border: 1px solid #ddd; }
+  .table-scroll { overflow: visible; margin: 0; }
 }

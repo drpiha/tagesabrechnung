@@ -137,9 +137,9 @@ export function CalcForm({ companyName, initial }: { companyName?: string | null
   const sym = CURRENCY_SYMBOL[currency];
 
   return (
-    <div className="grid lg:grid-cols-[440px_1fr] gap-6">
-      <div className="card p-6 self-start no-print">
-        <h2 className="font-semibold text-lg mb-4">{T("addNew")}</h2>
+    <div className="grid lg:grid-cols-[420px_1fr] gap-4 sm:gap-6">
+      <div className="card p-4 sm:p-6 self-start no-print">
+        <h2 className="font-semibold text-base sm:text-lg mb-3 sm:mb-4">{T("addNew")}</h2>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
