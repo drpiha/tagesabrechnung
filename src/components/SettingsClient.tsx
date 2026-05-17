@@ -2,12 +2,19 @@
 import { useState } from "react";
 import { useLocale } from "./LocaleContext";
 
-interface Initial { email: string; name: string | null; companyName: string | null; locale: string }
+interface Initial {
+  email: string;
+  name: string | null;
+  companyName: string | null;
+  verkaufsort?: string | null;
+  locale: string;
+}
 
 export function SettingsClient({ initial }: { initial: Initial }) {
   const { T } = useLocale();
   const [name, setName] = useState(initial.name ?? "");
   const [companyName, setCompanyName] = useState(initial.companyName ?? "");
+  const [verkaufsort, setVerkaufsort] = useState(initial.verkaufsort ?? "");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -16,7 +23,7 @@ export function SettingsClient({ initial }: { initial: Initial }) {
 
   async function save() {
     setMsg(null); setErr(null); setSaving(true);
-    const body: any = { name, companyName };
+    const body: any = { name, companyName, verkaufsort };
     if (newPassword) { body.newPassword = newPassword; body.currentPassword = currentPassword; }
     const res = await fetch("/api/settings", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -30,7 +37,7 @@ export function SettingsClient({ initial }: { initial: Initial }) {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{T("settings")}</h1>
 
-      <div className="card p-6 space-y-4">
+      <div className="card p-4 sm:p-6 space-y-4">
         <h2 className="font-semibold">{T("profile")}</h2>
         <div>
           <label className="label">{T("email")}</label>
@@ -44,9 +51,14 @@ export function SettingsClient({ initial }: { initial: Initial }) {
           <label className="label">{T("company")}</label>
           <input className="input" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
         </div>
+        <div>
+          <label className="label">{T("verkaufsort")}</label>
+          <input className="input" placeholder="Berlin / Filiale 1 / Restaurant XY"
+                 value={verkaufsort} onChange={(e) => setVerkaufsort(e.target.value)} />
+        </div>
       </div>
 
-      <div className="card p-6 space-y-4">
+      <div className="card p-4 sm:p-6 space-y-4">
         <h2 className="font-semibold">{T("changePassword")}</h2>
         <div>
           <label className="label">{T("currentPassword")}</label>

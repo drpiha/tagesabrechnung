@@ -20,7 +20,7 @@ export default async function DashboardPage() {
   const userId = (session.user as { id: string }).id;
   const u = await prisma.user.findUnique({
     where: { id: userId },
-    select: { companyName: true, name: true },
+    select: { companyName: true, verkaufsort: true, name: true },
   });
 
   const today = todayUtc();
@@ -44,7 +44,7 @@ export default async function DashboardPage() {
     <>
       <Nav />
       <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-        <CalcForm companyName={u?.companyName ?? null} initial={initial} />
+        <CalcForm companyName={u?.companyName ?? null} verkaufsort={u?.verkaufsort ?? null} initial={initial} />
       </main>
     </>
   );

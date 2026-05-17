@@ -8,6 +8,7 @@ interface Props {
   date: string;
   time?: string;
   companyName?: string | null;
+  verkaufsort?: string | null;
   tagesumsatzCent: number;
   anfangsbestandCent: number;
   ausgabenCent?: number;
@@ -19,8 +20,7 @@ const COIN_VALUES = [200, 100, 50, 20, 10, 5, 1];
 
 export function PdfButton(props: Props) {
   const { T, currency } = useLocale();
-  // PDF is always rendered in German (it's a GoBD document for German tax authorities).
-  // We use German labels regardless of UI locale.
+  // PDF always renders in German (GoBD document for German tax authorities).
   const pdfLocale = "de" as const;
 
   async function exportPdf() {
@@ -38,19 +38,27 @@ export function PdfButton(props: Props) {
     // --- Header ---
     doc.setFont("helvetica", "bold").setFontSize(15);
     doc.text("Tagesabrechnung", pageWidth / 2, 50, { align: "center" });
+
     doc.setFont("helvetica", "normal").setFontSize(10);
-    doc.text(`Firma: ${props.companyName ?? "—"}`, left, 78);
+    let headerY = 78;
+    doc.text(`Firma: ${props.companyName ?? "-"}`, left, headerY);
+    if (props.verkaufsort) {
+      doc.text(`Verkaufsort: ${props.verkaufsort}`, left, headerY + 14);
+      headerY += 14;
+    }
     const dateText = props.time ? `Datum: ${props.date}   Uhrzeit: ${props.time}` : `Datum: ${props.date}`;
     doc.text(dateText, right, 78, { align: "right" });
 
-    // --- Common table style ---
+    const tableStartY = headerY + 22;
+
+    // --- Common table styles ---
     const headStyles = { fillColor: [240, 240, 240] as any, textColor: 20, fontStyle: "bold" as const, lineColor: [0,0,0] as any, lineWidth: 0.5 };
     const bodyStyles = { textColor: 20, lineColor: [180,180,180] as any, lineWidth: 0.3 };
     const tableTheme = "grid" as const;
 
     // --- Banknotes table ---
     (doc as any).autoTable({
-      startY: 100,
+      startY: tableStartY,
       theme: tableTheme,
       head: [[`${sym} Schein`, "Stück", "Gesamt", "Kontrolle I", "Kontrolle II"]],
       body: [
@@ -67,7 +75,7 @@ export function PdfButton(props: Props) {
           "", "",
         ],
       ],
-      styles: { fontSize: 9, cellPadding: 4 },
+      styles: { fontSize: 9, cellPadding: 4, font: "helvetica" },
       headStyles,
       bodyStyles,
       columnStyles: {
@@ -101,7 +109,7 @@ export function PdfButton(props: Props) {
           "", "",
         ],
       ],
-      styles: { fontSize: 9, cellPadding: 4 },
+      styles: { fontSize: 9, cellPadding: 4, font: "helvetica" },
       headStyles,
       bodyStyles,
       columnStyles: {
@@ -116,7 +124,7 @@ export function PdfButton(props: Props) {
 
     y = (doc as any).lastAutoTable.finalY + 14;
 
-    // --- Financial Summary (paper-template flow) ---
+    // --- Financial summary (paper-template flow) ---
     const totalEinnahmen = props.result.gesamtICent + props.result.gesamtIICent;
     (doc as any).autoTable({
       startY: y,
@@ -127,7 +135,7 @@ export function PdfButton(props: Props) {
           { content: "Total Einnahmen (I + II)", styles: { fontStyle: "bold" } },
           { content: fmt(totalEinnahmen), styles: { fontStyle: "bold", halign: "right" } },
         ],
-        ["−  Anfangsbestand · Wechselgeld vom Vortag", { content: fmt(props.anfangsbestandCent), styles: { halign: "right" } }],
+        ["-  Anfangsbestand / Wechselgeld vom Vortag", { content: fmt(props.anfangsbestandCent), styles: { halign: "right" } }],
         ["+  Ausgaben", { content: fmt(props.ausgabenCent ?? 0), styles: { halign: "right" } }],
         ["=  Tagesumsatz", { content: fmt(props.tagesumsatzCent), styles: { halign: "right" } }],
         [
@@ -135,10 +143,10 @@ export function PdfButton(props: Props) {
           { content: fmt(props.result.kassenbestandCent), styles: { fontStyle: "bold", halign: "right", fillColor: [240,240,240] } },
         ],
       ],
-      styles: { fontSize: 9, cellPadding: 5 },
+      styles: { fontSize: 9, cellPadding: 5, font: "helvetica" },
       headStyles,
       bodyStyles,
-      columnStyles: { 1: { halign: "right", cellWidth: 130 } },
+      columnStyles: { 0: { cellWidth: "auto" as any }, 1: { halign: "right", cellWidth: 130 } },
       margin: { left, right: 40 },
     });
 

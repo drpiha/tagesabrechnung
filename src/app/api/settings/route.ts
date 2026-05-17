@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 const schema = z.object({
   name: z.string().min(1).max(120).optional(),
   companyName: z.string().max(160).optional(),
+  verkaufsort: z.string().max(160).optional(),
   locale: z.enum(["tr", "de"]).optional(),
   currentPassword: z.string().optional(),
   newPassword: z.string().min(8).max(200).optional(),
@@ -25,6 +26,7 @@ export async function POST(req: Request) {
   const data: any = {};
   if (p.data.name !== undefined) data.name = p.data.name;
   if (p.data.companyName !== undefined) data.companyName = p.data.companyName;
+  if (p.data.verkaufsort !== undefined) data.verkaufsort = p.data.verkaufsort;
   if (p.data.locale) data.locale = p.data.locale;
 
   if (p.data.newPassword) {
@@ -44,7 +46,7 @@ export async function GET() {
   const userId = (session.user as { id: string }).id;
   const u = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, email: true, name: true, companyName: true, locale: true },
+    select: { id: true, email: true, name: true, companyName: true, verkaufsort: true, locale: true },
   });
   return NextResponse.json({ user: u });
 }

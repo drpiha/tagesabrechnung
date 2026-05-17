@@ -7,6 +7,7 @@ interface Props {
   date?: string;
   time?: string;
   companyName?: string | null;
+  verkaufsort?: string | null;
   tagesumsatzCent: number;
   anfangsbestandCent: number;
   ausgabenCent?: number;
@@ -16,7 +17,7 @@ const BANKNOTE_VALUES = [50000, 20000, 10000, 5000, 2000, 1000, 500];
 const COIN_VALUES = [200, 100, 50, 20, 10, 5, 1];
 
 export function TagesabrechnungTable({
-  result, date, time, companyName, tagesumsatzCent, anfangsbestandCent, ausgabenCent = 0,
+  result, date, time, companyName, verkaufsort, tagesumsatzCent, anfangsbestandCent, ausgabenCent = 0,
 }: Props) {
   const { T, money } = useLocale();
   const totalEinnahmen = result.gesamtICent + result.gesamtIICent;
@@ -27,6 +28,7 @@ export function TagesabrechnungTable({
           <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">{T("addNew")}</h2>
           <div className="mt-1 flex justify-center flex-wrap gap-x-4 sm:gap-x-6 gap-y-1 text-xs sm:text-sm text-slate-600">
             {companyName && <span>{T("company")}: <b>{companyName}</b></span>}
+            {verkaufsort && <span>{T("verkaufsort")}: <b>{verkaufsort}</b></span>}
             {date && <span>{T("date")}: <b>{date}</b></span>}
             {time && <span>{T("time")}: <b>{time}</b></span>}
           </div>

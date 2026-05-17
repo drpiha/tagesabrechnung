@@ -25,7 +25,7 @@ interface Initial {
   notes?: string;
 }
 
-export function CalcForm({ companyName, initial }: { companyName?: string | null; initial?: Initial }) {
+export function CalcForm({ companyName, verkaufsort, initial }: { companyName?: string | null; verkaufsort?: string | null; initial?: Initial }) {
   const { T, currency, locale } = useLocale();
   const [date, setDate] = useState(initial?.date ?? todayIso());
   const [time, setTime] = useState(nowHHMM());
@@ -201,6 +201,7 @@ export function CalcForm({ companyName, initial }: { companyName?: string | null
                 date={date}
                 time={time}
                 companyName={companyName ?? null}
+                verkaufsort={verkaufsort ?? null}
                 tagesumsatzCent={eurToCent(tagesumsatz || "0")}
                 anfangsbestandCent={eurToCent(anfangsbestand || "0")}
                 ausgabenCent={eurToCent(ausgaben || "0")}
@@ -212,6 +213,7 @@ export function CalcForm({ companyName, initial }: { companyName?: string | null
               date={date}
               time={time}
               companyName={companyName ?? null}
+              verkaufsort={verkaufsort ?? null}
               tagesumsatzCent={eurToCent(tagesumsatz || "0")}
               anfangsbestandCent={eurToCent(anfangsbestand || "0")}
               ausgabenCent={eurToCent(ausgaben || "0")}

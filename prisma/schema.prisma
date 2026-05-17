@@ -14,7 +14,8 @@ model User {
   passwordHash    String
   name            String?
   companyName     String?
-  locale          String                 @default("tr")
+  verkaufsort     String?
+  locale          String                 @default("de")
   createdAt       DateTime               @default(now())
   reconciliations DailyReconciliation[]
 }
