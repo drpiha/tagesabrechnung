@@ -1,7 +1,8 @@
 "use client";
-import { type CalcResult } from "@/lib/calc";
+import { type CalcResult, eurToCent } from "@/lib/calc";
 import { useLocale } from "./LocaleContext";
 import { formatMoney, CURRENCY_SYMBOL } from "@/lib/i18n";
+import type { AusgabenItem } from "./CalcForm";
 
 interface Props {
   result: CalcResult;
@@ -12,15 +13,20 @@ interface Props {
   tagesumsatzCent: number;
   anfangsbestandCent: number;
   ausgabenCent?: number;
+  ausgabenItems?: AusgabenItem[];
   notes?: string;
 }
 
 const BANKNOTE_VALUES = [50000, 20000, 10000, 5000, 2000, 1000, 500];
 const COIN_VALUES = [200, 100, 50, 20, 10, 5, 1];
 
+function itemCent(it: AusgabenItem): number {
+  if (!it.amount) return 0;
+  try { return eurToCent(it.amount); } catch { return 0; }
+}
+
 export function PdfButton(props: Props) {
   const { T, currency } = useLocale();
-  // PDF always renders in German (GoBD document for German tax authorities).
   const pdfLocale = "de" as const;
 
   async function exportPdf() {
@@ -43,15 +49,14 @@ export function PdfButton(props: Props) {
     let headerY = 78;
     doc.text(`Firma: ${props.companyName ?? "-"}`, left, headerY);
     if (props.verkaufsort) {
-      doc.text(`Verkaufsort: ${props.verkaufsort}`, left, headerY + 14);
       headerY += 14;
+      doc.text(`Verkaufsort: ${props.verkaufsort}`, left, headerY);
     }
     const dateText = props.time ? `Datum: ${props.date}   Uhrzeit: ${props.time}` : `Datum: ${props.date}`;
     doc.text(dateText, right, 78, { align: "right" });
 
     const tableStartY = headerY + 22;
 
-    // --- Common table styles ---
     const headStyles = { fillColor: [240, 240, 240] as any, textColor: 20, fontStyle: "bold" as const, lineColor: [0,0,0] as any, lineWidth: 0.5 };
     const bodyStyles = { textColor: 20, lineColor: [180,180,180] as any, lineWidth: 0.3 };
     const tableTheme = "grid" as const;
@@ -124,25 +129,40 @@ export function PdfButton(props: Props) {
 
     y = (doc as any).lastAutoTable.finalY + 14;
 
-    // --- Financial summary (paper-template flow) ---
+    // --- Financial summary ---
     const totalEinnahmen = props.result.gesamtICent + props.result.gesamtIICent;
+    const visibleItems = (props.ausgabenItems ?? []).filter((it) => itemCent(it) > 0 || (it.label && it.label.trim()));
+
+    const summaryBody: any[] = [
+      [
+        { content: "Total Einnahmen (I + II)", styles: { fontStyle: "bold" } },
+        { content: fmt(totalEinnahmen), styles: { fontStyle: "bold", halign: "right" } },
+      ],
+      ["-  Anfangsbestand / Wechselgeld vom Vortag", { content: fmt(props.anfangsbestandCent), styles: { halign: "right" } }],
+    ];
+
+    if (visibleItems.length > 0) {
+      visibleItems.forEach((it) => {
+        const label = it.label && it.label.trim() ? `+  Ausgaben: ${it.label.trim()}` : "+  Ausgaben";
+        summaryBody.push([label, { content: fmt(itemCent(it)), styles: { halign: "right" } }]);
+      });
+    } else {
+      summaryBody.push(["+  Ausgaben", { content: fmt(props.ausgabenCent ?? 0), styles: { halign: "right" } }]);
+    }
+
+    summaryBody.push(
+      ["=  Tagesumsatz", { content: fmt(props.tagesumsatzCent), styles: { halign: "right" } }],
+      [
+        { content: "Kassenbestand bei Geschäftsabschluss", styles: { fontStyle: "bold", fillColor: [240,240,240] } },
+        { content: fmt(props.result.kassenbestandCent), styles: { fontStyle: "bold", halign: "right", fillColor: [240,240,240] } },
+      ],
+    );
+
     (doc as any).autoTable({
       startY: y,
       theme: tableTheme,
       head: [["Finanzielle Zusammenfassung", sym]],
-      body: [
-        [
-          { content: "Total Einnahmen (I + II)", styles: { fontStyle: "bold" } },
-          { content: fmt(totalEinnahmen), styles: { fontStyle: "bold", halign: "right" } },
-        ],
-        ["-  Anfangsbestand / Wechselgeld vom Vortag", { content: fmt(props.anfangsbestandCent), styles: { halign: "right" } }],
-        ["+  Ausgaben", { content: fmt(props.ausgabenCent ?? 0), styles: { halign: "right" } }],
-        ["=  Tagesumsatz", { content: fmt(props.tagesumsatzCent), styles: { halign: "right" } }],
-        [
-          { content: "Kassenbestand bei Geschäftsabschluss", styles: { fontStyle: "bold", fillColor: [240,240,240] } },
-          { content: fmt(props.result.kassenbestandCent), styles: { fontStyle: "bold", halign: "right", fillColor: [240,240,240] } },
-        ],
-      ],
+      body: summaryBody,
       styles: { fontSize: 9, cellPadding: 5, font: "helvetica" },
       headStyles,
       bodyStyles,

@@ -1,6 +1,7 @@
 "use client";
-import { type CalcResult } from "@/lib/calc";
+import { type CalcResult, eurToCent } from "@/lib/calc";
 import { useLocale } from "./LocaleContext";
+import type { AusgabenItem } from "./CalcForm";
 
 interface Props {
   result: CalcResult;
@@ -11,16 +12,24 @@ interface Props {
   tagesumsatzCent: number;
   anfangsbestandCent: number;
   ausgabenCent?: number;
+  ausgabenItems?: AusgabenItem[];
 }
 
 const BANKNOTE_VALUES = [50000, 20000, 10000, 5000, 2000, 1000, 500];
 const COIN_VALUES = [200, 100, 50, 20, 10, 5, 1];
 
+function itemCent(it: AusgabenItem): number {
+  if (!it.amount) return 0;
+  try { return eurToCent(it.amount); } catch { return 0; }
+}
+
 export function TagesabrechnungTable({
-  result, date, time, companyName, verkaufsort, tagesumsatzCent, anfangsbestandCent, ausgabenCent = 0,
+  result, date, time, companyName, verkaufsort, tagesumsatzCent, anfangsbestandCent, ausgabenCent = 0, ausgabenItems = [],
 }: Props) {
   const { T, money } = useLocale();
   const totalEinnahmen = result.gesamtICent + result.gesamtIICent;
+  const visibleItems = ausgabenItems.filter((it) => itemCent(it) > 0 || (it.label && it.label.trim()));
+
   return (
     <div className="space-y-4 sm:space-y-5">
       <div className="card p-4 sm:p-5">
@@ -120,13 +129,24 @@ export function TagesabrechnungTable({
               <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums font-semibold whitespace-nowrap">{money(totalEinnahmen)}</td>
             </tr>
             <tr>
-              <td className="py-2 px-2 sm:px-3 border border-slate-300">− {T("anfangsbestand")}</td>
+              <td className="py-2 px-2 sm:px-3 border border-slate-300">- {T("anfangsbestand")}</td>
               <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">{money(anfangsbestandCent)}</td>
             </tr>
-            <tr>
-              <td className="py-2 px-2 sm:px-3 border border-slate-300">+ {T("ausgaben")}</td>
-              <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">{money(ausgabenCent)}</td>
-            </tr>
+            {visibleItems.length > 0 ? (
+              visibleItems.map((it, i) => (
+                <tr key={i}>
+                  <td className="py-2 px-2 sm:px-3 border border-slate-300">
+                    + {T("ausgabenItem")}{it.label ? `: ${it.label}` : ""}
+                  </td>
+                  <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">{money(itemCent(it))}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td className="py-2 px-2 sm:px-3 border border-slate-300">+ {T("ausgaben")}</td>
+                <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">{money(ausgabenCent)}</td>
+              </tr>
+            )}
             <tr>
               <td className="py-2 px-2 sm:px-3 border border-slate-300">= {T("tagesumsatz")}</td>
               <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">{money(tagesumsatzCent)}</td>

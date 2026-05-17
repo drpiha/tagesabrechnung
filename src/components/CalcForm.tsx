@@ -15,24 +15,41 @@ function nowHHMM() {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+export interface AusgabenItem { label?: string; amount: string }
+
 interface Initial {
   id?: string;
   date?: string;
   tagesumsatz?: string;
   anfangsbestand?: string;
   muenzenZielwert?: string;
-  ausgaben?: string;
+  ausgabenItems?: AusgabenItem[];
+  verkaufsort?: string;
   notes?: string;
 }
 
-export function CalcForm({ companyName, verkaufsort, initial }: { companyName?: string | null; verkaufsort?: string | null; initial?: Initial }) {
-  const { T, currency, locale } = useLocale();
+function sumItemsCent(items: AusgabenItem[]): number {
+  let s = 0;
+  for (const it of items) {
+    if (!it.amount) continue;
+    try { s += eurToCent(it.amount); } catch { /* ignore */ }
+  }
+  return s;
+}
+
+export function CalcForm({ companyName, initial }: { companyName?: string | null; initial?: Initial }) {
+  const { T, currency } = useLocale();
   const [date, setDate] = useState(initial?.date ?? todayIso());
   const [time, setTime] = useState(nowHHMM());
+  const [verkaufsort, setVerkaufsort] = useState(initial?.verkaufsort ?? "");
   const [tagesumsatz, setTagesumsatz] = useState(initial?.tagesumsatz ?? "");
   const [anfangsbestand, setAnfangsbestand] = useState(initial?.anfangsbestand ?? "");
   const [muenzenZielwert, setMuenzenZielwert] = useState(initial?.muenzenZielwert ?? "50,00");
-  const [ausgaben, setAusgaben] = useState(initial?.ausgaben ?? "0,00");
+  const [ausgabenItems, setAusgabenItems] = useState<AusgabenItem[]>(
+    initial?.ausgabenItems && initial.ausgabenItems.length > 0
+      ? initial.ausgabenItems
+      : [{ amount: "" }]
+  );
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [result, setResult] = useState<CalcResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -40,7 +57,6 @@ export function CalcForm({ companyName, verkaufsort, initial }: { companyName?: 
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [loadedNotice, setLoadedNotice] = useState<boolean>(!!initial?.id);
 
-  // İlk açılışta mevcut kaydı varsa otomatik hesapla
   const didInitialCalc = useRef(false);
   useEffect(() => {
     if (didInitialCalc.current) return;
@@ -51,7 +67,7 @@ export function CalcForm({ companyName, verkaufsort, initial }: { companyName?: 
           tagesumsatzCent: eurToCent(initial.tagesumsatz),
           anfangsbestandCent: eurToCent(initial.anfangsbestand ?? "0"),
           muenzenZielwertCent: eurToCent(initial.muenzenZielwert ?? "0"),
-          ausgabenCent: eurToCent(initial.ausgaben ?? "0"),
+          ausgabenCent: sumItemsCent(initial.ausgabenItems ?? []),
         });
         setResult(r);
       } catch {
@@ -60,7 +76,6 @@ export function CalcForm({ companyName, verkaufsort, initial }: { companyName?: 
     }
   }, [initial]);
 
-  // Tarih değişince o güne ait kayıt varsa yükle
   useEffect(() => {
     if (!date) return;
     let aborted = false;
@@ -73,7 +88,9 @@ export function CalcForm({ companyName, verkaufsort, initial }: { companyName?: 
         setTagesumsatz(centToInputStr(j.row.tagesumsatz));
         setAnfangsbestand(centToInputStr(j.row.anfangsbestand));
         setMuenzenZielwert(centToInputStr(j.row.muenzenZielwert));
-        setAusgaben(centToInputStr(j.row.ausgaben ?? 0));
+        setVerkaufsort(j.row.verkaufsort ?? "");
+        const items = parseRowAusgaben(j.row.ausgabenJson, j.row.ausgaben ?? 0);
+        setAusgabenItems(items.length > 0 ? items : [{ amount: "" }]);
         setNotes(j.row.notes ?? "");
         setLoadedNotice(true);
         try {
@@ -100,7 +117,7 @@ export function CalcForm({ companyName, verkaufsort, initial }: { companyName?: 
         tagesumsatzCent: eurToCent(tagesumsatz || "0"),
         anfangsbestandCent: eurToCent(anfangsbestand || "0"),
         muenzenZielwertCent: eurToCent(muenzenZielwert || "0"),
-        ausgabenCent: eurToCent(ausgaben || "0"),
+        ausgabenCent: sumItemsCent(ausgabenItems),
       });
       setResult(r);
     } catch (e: any) {
@@ -118,16 +135,29 @@ export function CalcForm({ companyName, verkaufsort, initial }: { companyName?: 
           tagesumsatzCent: eurToCent(tagesumsatz || "0"),
           anfangsbestandCent: eurToCent(anfangsbestand || "0"),
           muenzenZielwertCent: eurToCent(muenzenZielwert || "0"),
-          ausgabenCent: eurToCent(ausgaben || "0"),
+          ausgabenCent: sumItemsCent(ausgabenItems),
         });
         setResult(r);
       } catch (e: any) { setErr(e.message); return; }
     }
     setSaving(true); setSavedMsg(null);
+    const cleanItems = ausgabenItems
+      .map((it) => ({
+        label: it.label?.trim() || undefined,
+        amount: (it.amount || "0").trim(),
+      }))
+      .filter((it) => {
+        try { return eurToCent(it.amount) > 0 || (it.label && it.label.length > 0); } catch { return false; }
+      });
     const res = await fetch("/api/reconciliation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date, tagesumsatz, anfangsbestand, muenzenZielwert, ausgaben, notes }),
+      body: JSON.stringify({
+        date, tagesumsatz, anfangsbestand, muenzenZielwert,
+        ausgabenItems: cleanItems,
+        verkaufsort: verkaufsort.trim() || undefined,
+        notes,
+      }),
     });
     setSaving(false);
     if (res.ok) setSavedMsg(T("saved"));
@@ -135,9 +165,20 @@ export function CalcForm({ companyName, verkaufsort, initial }: { companyName?: 
   }
 
   const sym = CURRENCY_SYMBOL[currency];
+  const totalAusgabenCent = sumItemsCent(ausgabenItems);
+
+  function updateItem(idx: number, patch: Partial<AusgabenItem>) {
+    setAusgabenItems((curr) => curr.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  }
+  function addItem() {
+    setAusgabenItems((curr) => [...curr, { amount: "" }]);
+  }
+  function removeItem(idx: number) {
+    setAusgabenItems((curr) => (curr.length <= 1 ? [{ amount: "" }] : curr.filter((_, i) => i !== idx)));
+  }
 
   return (
-    <div className="grid lg:grid-cols-[420px_1fr] gap-4 sm:gap-6">
+    <div className="grid lg:grid-cols-[440px_1fr] gap-4 sm:gap-6">
       <div className="card p-4 sm:p-6 self-start no-print">
         <h2 className="font-semibold text-base sm:text-lg mb-3 sm:mb-4">{T("addNew")}</h2>
         <div className="space-y-4">
@@ -150,6 +191,11 @@ export function CalcForm({ companyName, verkaufsort, initial }: { companyName?: 
               <label className="label">{T("time")}</label>
               <input type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} />
             </div>
+          </div>
+          <div>
+            <label className="label">{T("verkaufsort")}</label>
+            <input className="input" placeholder="Berlin / Filiale 1 / Restaurant XY"
+                   value={verkaufsort} onChange={(e) => setVerkaufsort(e.target.value)} />
           </div>
           {loadedNotice && (
             <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
@@ -167,9 +213,42 @@ export function CalcForm({ companyName, verkaufsort, initial }: { companyName?: 
                    value={anfangsbestand} onChange={(e) => setAnfangsbestand(e.target.value)} />
           </div>
           <div>
-            <label className="label">{T("ausgaben")} ({sym})</label>
-            <input className="input" inputMode="decimal" placeholder="0,00"
-                   value={ausgaben} onChange={(e) => setAusgaben(e.target.value)} />
+            <div className="flex items-center justify-between mb-1">
+              <label className="label !mb-0">{T("ausgaben")} ({sym})</label>
+              <span className="text-xs text-slate-500 tabular-nums">
+                {T("sum")}: {(totalAusgabenCent / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {sym}
+              </span>
+            </div>
+            <div className="space-y-2">
+              {ausgabenItems.map((it, idx) => (
+                <div key={idx} className="grid grid-cols-[1fr_110px_32px] gap-2">
+                  <input
+                    className="input"
+                    placeholder={T("ausgabeLabel")}
+                    value={it.label ?? ""}
+                    onChange={(e) => updateItem(idx, { label: e.target.value })}
+                  />
+                  <input
+                    className="input text-right"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={it.amount}
+                    onChange={(e) => updateItem(idx, { amount: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeItem(idx)}
+                    className="rounded-lg border border-slate-300 text-slate-500 hover:bg-red-50 hover:text-red-600 hover:border-red-300 text-lg leading-none"
+                    aria-label="remove"
+                  >×</button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addItem}
+                className="text-sm text-brand-600 hover:text-brand-700 font-medium"
+              >+ {T("addAusgabe")}</button>
+            </div>
           </div>
           <div>
             <label className="label">{T("muenzenZielwert")} ({sym})</label>
@@ -201,10 +280,11 @@ export function CalcForm({ companyName, verkaufsort, initial }: { companyName?: 
                 date={date}
                 time={time}
                 companyName={companyName ?? null}
-                verkaufsort={verkaufsort ?? null}
+                verkaufsort={verkaufsort || null}
+                ausgabenItems={ausgabenItems}
                 tagesumsatzCent={eurToCent(tagesumsatz || "0")}
                 anfangsbestandCent={eurToCent(anfangsbestand || "0")}
-                ausgabenCent={eurToCent(ausgaben || "0")}
+                ausgabenCent={totalAusgabenCent}
                 notes={notes}
               />
             </div>
@@ -213,10 +293,11 @@ export function CalcForm({ companyName, verkaufsort, initial }: { companyName?: 
               date={date}
               time={time}
               companyName={companyName ?? null}
-              verkaufsort={verkaufsort ?? null}
+              verkaufsort={verkaufsort || null}
+              ausgabenItems={ausgabenItems}
               tagesumsatzCent={eurToCent(tagesumsatz || "0")}
               anfangsbestandCent={eurToCent(anfangsbestand || "0")}
-              ausgabenCent={eurToCent(ausgaben || "0")}
+              ausgabenCent={totalAusgabenCent}
             />
           </>
         ) : (
@@ -236,4 +317,16 @@ function centToInputStr(cent: number): string {
   const e = Math.floor(abs / 100);
   const c = abs % 100;
   return sign + e.toString() + "," + c.toString().padStart(2, "0");
+}
+
+function parseRowAusgaben(json: string | null | undefined, total: number): AusgabenItem[] {
+  if (!json || json === "[]") {
+    return total > 0 ? [{ amount: centToInputStr(total) }] : [];
+  }
+  try {
+    const arr = JSON.parse(json) as Array<{ label?: string; amount: number }>;
+    return arr.map((it) => ({ label: it.label, amount: centToInputStr(it.amount ?? 0) }));
+  } catch {
+    return total > 0 ? [{ amount: centToInputStr(total) }] : [];
+  }
 }

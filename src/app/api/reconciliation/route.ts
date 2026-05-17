@@ -5,12 +5,19 @@ import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { calculate, eurToCent } from "@/lib/calc";
 
+const ausgabenItemSchema = z.object({
+  label: z.string().max(120).optional(),
+  amount: z.union([z.string(), z.number()]),
+});
+
 const inputSchema = z.object({
   date: z.string(),
   tagesumsatz: z.union([z.string(), z.number()]),
   anfangsbestand: z.union([z.string(), z.number()]),
   muenzenZielwert: z.union([z.string(), z.number()]),
-  ausgaben: z.union([z.string(), z.number()]).optional(),
+  ausgabenItems: z.array(ausgabenItemSchema).optional(),
+  ausgaben: z.union([z.string(), z.number()]).optional(), // backwards-compat
+  verkaufsort: z.string().max(160).optional(),
   notes: z.string().max(2000).optional(),
 });
 
@@ -56,20 +63,36 @@ export async function POST(req: Request) {
   const p = inputSchema.safeParse(json);
   if (!p.success) return NextResponse.json({ error: "Geçersiz veri", details: p.error.flatten() }, { status: 400 });
 
-  const { date, tagesumsatz, anfangsbestand, muenzenZielwert, ausgaben, notes } = p.data;
+  const { date, tagesumsatz, anfangsbestand, muenzenZielwert, ausgabenItems, ausgaben, verkaufsort, notes } = p.data;
   let d: Date;
   try { d = parseDate(date); } catch (e) {
     return NextResponse.json({ error: "Geçersiz tarih" }, { status: 400 });
   }
 
+  // Build canonical ausgabenItems array + total
+  let items: Array<{ label?: string; amount: number }>;
+  if (ausgabenItems && ausgabenItems.length > 0) {
+    items = ausgabenItems
+      .map((it) => ({
+        label: it.label && it.label.trim() ? it.label.trim() : undefined,
+        amount: eurToCent(it.amount),
+      }))
+      .filter((it) => it.amount > 0 || (it.label && it.label.length > 0));
+  } else if (ausgaben != null) {
+    const cents = eurToCent(ausgaben);
+    items = cents > 0 ? [{ amount: cents }] : [];
+  } else {
+    items = [];
+  }
+  const ausgabenSumCent = items.reduce((s, it) => s + it.amount, 0);
+
   let result;
-  const ausgabenCent = ausgaben != null ? eurToCent(ausgaben) : 0;
   try {
     result = calculate({
       tagesumsatzCent: eurToCent(tagesumsatz),
       anfangsbestandCent: eurToCent(anfangsbestand),
       muenzenZielwertCent: eurToCent(muenzenZielwert),
-      ausgabenCent,
+      ausgabenCent: ausgabenSumCent,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });
@@ -81,7 +104,9 @@ export async function POST(req: Request) {
     tagesumsatz: eurToCent(tagesumsatz),
     anfangsbestand: eurToCent(anfangsbestand),
     muenzenZielwert: eurToCent(muenzenZielwert),
-    ausgaben: ausgabenCent,
+    ausgaben: ausgabenSumCent,
+    ausgabenJson: JSON.stringify(items),
+    verkaufsort: verkaufsort?.trim() || null,
     banknotesJson: JSON.stringify(result.banknotes),
     coinsJson: JSON.stringify(result.coins),
     gesamtI: result.gesamtICent,

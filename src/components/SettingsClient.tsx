@@ -6,7 +6,6 @@ interface Initial {
   email: string;
   name: string | null;
   companyName: string | null;
-  verkaufsort?: string | null;
   locale: string;
 }
 
@@ -14,7 +13,6 @@ export function SettingsClient({ initial }: { initial: Initial }) {
   const { T } = useLocale();
   const [name, setName] = useState(initial.name ?? "");
   const [companyName, setCompanyName] = useState(initial.companyName ?? "");
-  const [verkaufsort, setVerkaufsort] = useState(initial.verkaufsort ?? "");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -23,7 +21,7 @@ export function SettingsClient({ initial }: { initial: Initial }) {
 
   async function save() {
     setMsg(null); setErr(null); setSaving(true);
-    const body: any = { name, companyName, verkaufsort };
+    const body: any = { name, companyName };
     if (newPassword) { body.newPassword = newPassword; body.currentPassword = currentPassword; }
     const res = await fetch("/api/settings", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -50,11 +48,6 @@ export function SettingsClient({ initial }: { initial: Initial }) {
         <div>
           <label className="label">{T("company")}</label>
           <input className="input" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
-        </div>
-        <div>
-          <label className="label">{T("verkaufsort")}</label>
-          <input className="input" placeholder="Berlin / Filiale 1 / Restaurant XY"
-                 value={verkaufsort} onChange={(e) => setVerkaufsort(e.target.value)} />
         </div>
       </div>
 
