@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
+}
+
+model User {
+  id              String                 @id @default(cuid())
+  email           String                 @unique
+  passwordHash    String
+  name            String?
+  companyName     String?
+  locale          String                 @default("tr")
+  createdAt       DateTime               @default(now())
+  reconciliations DailyReconciliation[]
+}
+
+model DailyReconciliation {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date            DateTime
+  tagesumsatz     Int      // cent cinsinden
+  anfangsbestand  Int      // cent cinsinden
+  muenzenZielwert Int      // cent cinsinden
+  banknotesJson   String   // JSON: { "100": n, "50": n, ... }
+  coinsJson       String   // JSON: { "200": n, "100": n, ... } (cent)
+  gesamtI         Int      // cent
+  gesamtII        Int      // cent
+  kassenbestand   Int      // cent
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
