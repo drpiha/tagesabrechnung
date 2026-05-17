@@ -67,7 +67,6 @@ export function CalcForm({ companyName, initial }: { companyName?: string | null
           tagesumsatzCent: eurToCent(initial.tagesumsatz),
           anfangsbestandCent: eurToCent(initial.anfangsbestand ?? "0"),
           muenzenZielwertCent: eurToCent(initial.muenzenZielwert ?? "0"),
-          ausgabenCent: sumItemsCent(initial.ausgabenItems ?? []),
         });
         setResult(r);
       } catch {
@@ -98,7 +97,6 @@ export function CalcForm({ companyName, initial }: { companyName?: string | null
             tagesumsatzCent: j.row.tagesumsatz,
             anfangsbestandCent: j.row.anfangsbestand,
             muenzenZielwertCent: j.row.muenzenZielwert,
-            ausgabenCent: j.row.ausgaben ?? 0,
           });
           setResult(r);
         } catch { /* ignore */ }
@@ -117,7 +115,6 @@ export function CalcForm({ companyName, initial }: { companyName?: string | null
         tagesumsatzCent: eurToCent(tagesumsatz || "0"),
         anfangsbestandCent: eurToCent(anfangsbestand || "0"),
         muenzenZielwertCent: eurToCent(muenzenZielwert || "0"),
-        ausgabenCent: sumItemsCent(ausgabenItems),
       });
       setResult(r);
     } catch (e: any) {
@@ -135,7 +132,6 @@ export function CalcForm({ companyName, initial }: { companyName?: string | null
           tagesumsatzCent: eurToCent(tagesumsatz || "0"),
           anfangsbestandCent: eurToCent(anfangsbestand || "0"),
           muenzenZielwertCent: eurToCent(muenzenZielwert || "0"),
-          ausgabenCent: sumItemsCent(ausgabenItems),
         });
         setResult(r);
       } catch (e: any) { setErr(e.message); return; }

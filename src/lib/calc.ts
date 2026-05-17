@@ -6,8 +6,8 @@
 
 export const BANKNOTE_CENTS = [50000, 20000, 10000, 5000, 2000, 1000, 500] as const;
 //                            500€, 200€,  100€,  50€,  20€,  10€,  5€
-export const COIN_CENTS     = [200, 100, 50, 20, 10, 5, 1] as const;
-//                            2€,  1€,  0.50,0.20,0.10,0.05,0.01
+export const COIN_CENTS     = [200, 100, 50, 20, 10, 5, 2, 1] as const;
+//                            2€,  1€,  0.50,0.20,0.10,0.05,0.02,0.01
 
 // Promt kuralı: 500 ve 200 her zaman 0 adet
 const ALLOWED_BANKNOTE_CENTS = [10000, 5000, 2000, 1000, 500] as const;
@@ -150,12 +150,12 @@ function enforceMinTwoBanknotes(counts: Counts, budget: number) {
  * 4) Toplam == girdi (integer cent) — sağlamlık kontrolü.
  */
 function distributeCoins(totalCent: number): Counts {
-  const counts: Counts = { 200: 0, 100: 0, 50: 0, 20: 0, 10: 0, 5: 0, 1: 0 };
+  const counts: Counts = { 200: 0, 100: 0, 50: 0, 20: 0, 10: 0, 5: 0, 2: 0, 1: 0 };
   if (totalCent <= 0) return counts;
 
-  // 1) Alt-€: 0-99 cent → açgözlü 50, 20, 10, 5, 1
+  // 1) Alt-€: 0-99 cent → açgözlü 50, 20, 10, 5, 2, 1
   let sub = totalCent % 100;
-  for (const c of [50, 20, 10, 5, 1] as const) {
+  for (const c of [50, 20, 10, 5, 2, 1] as const) {
     if (sub >= c) {
       const n = Math.floor(sub / c);
       counts[c] += n;
@@ -211,6 +211,7 @@ function distributeCoins(totalCent: number): Counts {
     counts[20]!  *  20 +
     counts[10]!  *  10 +
     counts[5]!   *   5 +
+    counts[2]!   *   2 +
     counts[1]!   *   1;
   if (sum !== totalCent) {
     throw new Error(`İç hata: madeni toplam ${sum} != ${totalCent}`);
@@ -261,16 +262,14 @@ function enforceMinTwoDenominations(counts: Counts, totalCent: number) {
 
 export function calculate(input: CalcInput): CalcResult {
   const { tagesumsatzCent, anfangsbestandCent, muenzenZielwertCent } = input;
-  const ausgabenCent = input.ausgabenCent ?? 0;
   if (tagesumsatzCent < 0)     throw new Error("Tagesumsatz negatif olamaz");
   if (anfangsbestandCent < 0)  throw new Error("Anfangsbestand negatif olamaz");
   if (muenzenZielwertCent < 0) throw new Error("Münzen-Zielwert negatif olamaz");
-  if (ausgabenCent < 0)        throw new Error("Ausgaben negatif olamaz");
 
-  const totalCent = tagesumsatzCent + anfangsbestandCent - ausgabenCent;
-  if (totalCent < 0) {
-    throw new Error("Gider, gelir+başlangıçtan büyük olamaz");
-  }
+  // Kasa fiziksel toplamı: Ausgaben kasadan düşülmez (kağıt şablonu uyumu).
+  // Ausgaben/Einlage gibi hareketler sadece özet bölümünde gösterilir,
+  // Zwischensumme türetiminde kullanılır.
+  const totalCent = tagesumsatzCent + anfangsbestandCent;
   if (muenzenZielwertCent > totalCent) {
     throw new Error("Hedef bozuk para toplam kasayı aşamaz");
   }
@@ -297,6 +296,7 @@ export function calculate(input: CalcInput): CalcResult {
     coins[20]!  *  20 +
     coins[10]!  *  10 +
     coins[5]!   *   5 +
+    coins[2]!   *   2 +
     coins[1]!   *   1;
 
   const kassenbestandCent = gesamtICent + gesamtIICent;

@@ -18,7 +18,7 @@ interface Props {
 }
 
 const BANKNOTE_VALUES = [50000, 20000, 10000, 5000, 2000, 1000, 500];
-const COIN_VALUES = [200, 100, 50, 20, 10, 5, 1];
+const COIN_VALUES = [200, 100, 50, 20, 10, 5, 2, 1];
 
 function itemCent(it: AusgabenItem): number {
   if (!it.amount) return 0;
@@ -129,34 +129,56 @@ export function PdfButton(props: Props) {
 
     y = (doc as any).lastAutoTable.finalY + 14;
 
-    // --- Financial summary ---
-    const totalEinnahmen = props.result.gesamtICent + props.result.gesamtIICent;
+    // --- Summary (paper template flow) ---
+    const totalKassenbestand = props.result.gesamtICent + props.result.gesamtIICent;
+    const tagesumsatzDerived = totalKassenbestand - props.anfangsbestandCent;
     const visibleItems = (props.ausgabenItems ?? []).filter((it) => itemCent(it) > 0 || (it.label && it.label.trim()));
+    const ausgabenSum = visibleItems.reduce((s, it) => s + itemCent(it), 0);
+    const zwischensumme = tagesumsatzDerived - ausgabenSum;
+    const ausgabenRowCount = Math.max(3, visibleItems.length);
+
+    const greyFill = [240, 240, 240] as any;
 
     const summaryBody: any[] = [
       [
-        { content: "Total Einnahmen (I + II)", styles: { fontStyle: "bold" } },
-        { content: fmt(totalEinnahmen), styles: { fontStyle: "bold", halign: "right" } },
+        { content: "Total Kassenbestand (I + II)", styles: { fontStyle: "bold", fillColor: greyFill } },
+        { content: fmt(totalKassenbestand), styles: { fontStyle: "bold", halign: "right", fillColor: greyFill } },
       ],
       ["-  Anfangsbestand / Wechselgeld vom Vortag", { content: fmt(props.anfangsbestandCent), styles: { halign: "right" } }],
+      [
+        { content: "=  Tagesumsatz", styles: { fontStyle: "bold" } },
+        { content: fmt(tagesumsatzDerived), styles: { fontStyle: "bold", halign: "right" } },
+      ],
     ];
 
-    if (visibleItems.length > 0) {
-      visibleItems.forEach((it) => {
-        const label = it.label && it.label.trim() ? `+  Ausgaben: ${it.label.trim()}` : "+  Ausgaben";
-        summaryBody.push([label, { content: fmt(itemCent(it)), styles: { halign: "right" } }]);
-      });
-    } else {
-      summaryBody.push(["+  Ausgaben", { content: fmt(props.ausgabenCent ?? 0), styles: { halign: "right" } }]);
+    // Ausgaben rows — min 3, padded with empty
+    for (let i = 0; i < ausgabenRowCount; i++) {
+      const it = visibleItems[i];
+      const label = it?.label?.trim();
+      const text = label ? `-  Ausgaben: ${label}` : "-  Ausgaben";
+      summaryBody.push([
+        text,
+        { content: it ? fmt(itemCent(it)) : "", styles: { halign: "right" } },
+      ]);
     }
 
-    summaryBody.push(
-      ["=  Tagesumsatz", { content: fmt(props.tagesumsatzCent), styles: { halign: "right" } }],
-      [
-        { content: "Kassenbestand bei Geschäftsabschluss", styles: { fontStyle: "bold", fillColor: [240,240,240] } },
-        { content: fmt(props.result.kassenbestandCent), styles: { fontStyle: "bold", halign: "right", fillColor: [240,240,240] } },
-      ],
-    );
+    // Einlage — 2 empty placeholder rows
+    summaryBody.push(["+  Einlage", ""]);
+    summaryBody.push(["+  Einlage", ""]);
+
+    summaryBody.push([
+      { content: "=  Zwischensumme", styles: { fontStyle: "bold" } },
+      { content: fmt(zwischensumme), styles: { fontStyle: "bold", halign: "right" } },
+    ]);
+
+    // Kassenbestand bei Geschäftsabschluss — value cell empty; "Übertrag zum nächsten Tag" sub-label
+    summaryBody.push([
+      {
+        content: "Kassenbestand bei Geschäftsabschluss\nÜbertrag zum nächsten Tag",
+        styles: { fontStyle: "bold", fillColor: greyFill },
+      },
+      { content: "", styles: { fillColor: greyFill } },
+    ]);
 
     (doc as any).autoTable({
       startY: y,

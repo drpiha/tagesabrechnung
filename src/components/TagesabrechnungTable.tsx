@@ -16,7 +16,7 @@ interface Props {
 }
 
 const BANKNOTE_VALUES = [50000, 20000, 10000, 5000, 2000, 1000, 500];
-const COIN_VALUES = [200, 100, 50, 20, 10, 5, 1];
+const COIN_VALUES = [200, 100, 50, 20, 10, 5, 2, 1];
 
 function itemCent(it: AusgabenItem): number {
   if (!it.amount) return 0;
@@ -24,11 +24,15 @@ function itemCent(it: AusgabenItem): number {
 }
 
 export function TagesabrechnungTable({
-  result, date, time, companyName, verkaufsort, tagesumsatzCent, anfangsbestandCent, ausgabenCent = 0, ausgabenItems = [],
+  result, date, time, companyName, verkaufsort, tagesumsatzCent, anfangsbestandCent, ausgabenItems = [],
 }: Props) {
   const { T, money } = useLocale();
-  const totalEinnahmen = result.gesamtICent + result.gesamtIICent;
+  const totalKassenbestand = result.gesamtICent + result.gesamtIICent;
+  const tagesumsatzDerived = totalKassenbestand - anfangsbestandCent;
   const visibleItems = ausgabenItems.filter((it) => itemCent(it) > 0 || (it.label && it.label.trim()));
+  const ausgabenSum = visibleItems.reduce((s, it) => s + itemCent(it), 0);
+  const zwischensumme = tagesumsatzDerived - ausgabenSum;
+  const ausgabenRowCount = Math.max(3, visibleItems.length);
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -124,36 +128,48 @@ export function TagesabrechnungTable({
         <h3 className="font-semibold text-slate-800 mb-3 text-sm sm:text-base">{T("summary")}</h3>
         <table className="w-full text-xs sm:text-sm border border-slate-300">
           <tbody>
-            <tr className="bg-slate-100">
-              <td className="py-2 px-2 sm:px-3 border border-slate-300 font-semibold">{T("totalEinnahmen")}</td>
-              <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums font-semibold whitespace-nowrap">{money(totalEinnahmen)}</td>
+            <tr className="bg-slate-100 font-bold">
+              <td className="py-2 px-2 sm:px-3 border border-slate-300">{T("totalKassenbestand")} (I + II)</td>
+              <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">{money(totalKassenbestand)}</td>
             </tr>
             <tr>
-              <td className="py-2 px-2 sm:px-3 border border-slate-300">- {T("anfangsbestand")}</td>
+              <td className="py-2 px-2 sm:px-3 border border-slate-300">-  {T("anfangsbestand")} / Wechselgeld vom Vortag</td>
               <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">{money(anfangsbestandCent)}</td>
             </tr>
-            {visibleItems.length > 0 ? (
-              visibleItems.map((it, i) => (
-                <tr key={i}>
+            <tr className="font-semibold">
+              <td className="py-2 px-2 sm:px-3 border border-slate-300">=  {T("tagesumsatz")}</td>
+              <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">{money(tagesumsatzDerived)}</td>
+            </tr>
+            {Array.from({ length: ausgabenRowCount }).map((_, i) => {
+              const it = visibleItems[i];
+              const label = it?.label?.trim();
+              return (
+                <tr key={`a${i}`}>
                   <td className="py-2 px-2 sm:px-3 border border-slate-300">
-                    + {T("ausgabenItem")}{it.label ? `: ${it.label}` : ""}
+                    -  {T("ausgaben")}{label ? `: ${label}` : ""}
                   </td>
-                  <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">{money(itemCent(it))}</td>
+                  <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">
+                    {it ? money(itemCent(it)) : ""}
+                  </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td className="py-2 px-2 sm:px-3 border border-slate-300">+ {T("ausgaben")}</td>
-                <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">{money(ausgabenCent)}</td>
+              );
+            })}
+            {[0, 1].map((i) => (
+              <tr key={`e${i}`}>
+                <td className="py-2 px-2 sm:px-3 border border-slate-300">+  {T("einlage")}</td>
+                <td className="text-right py-2 px-2 sm:px-3 border border-slate-300"></td>
               </tr>
-            )}
-            <tr>
-              <td className="py-2 px-2 sm:px-3 border border-slate-300">= {T("tagesumsatz")}</td>
-              <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">{money(tagesumsatzCent)}</td>
+            ))}
+            <tr className="font-semibold">
+              <td className="py-2 px-2 sm:px-3 border border-slate-300">=  {T("zwischensumme")}</td>
+              <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">{money(zwischensumme)}</td>
             </tr>
             <tr className="bg-slate-100 font-bold">
-              <td className="py-2 px-2 sm:px-3 border border-slate-300">{T("kassenbestand")}</td>
-              <td className="text-right py-2 px-2 sm:px-3 border border-slate-300 tabular-nums whitespace-nowrap">{money(result.kassenbestandCent)}</td>
+              <td className="py-2 px-2 sm:px-3 border border-slate-300">
+                {T("kassenbestand")}
+                <span className="block text-[10px] sm:text-xs font-normal text-slate-500 italic">{T("uebertrag")}</span>
+              </td>
+              <td className="border border-slate-300"></td>
             </tr>
           </tbody>
         </table>

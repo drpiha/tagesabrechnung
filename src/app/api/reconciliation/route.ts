@@ -92,7 +92,6 @@ export async function POST(req: Request) {
       tagesumsatzCent: eurToCent(tagesumsatz),
       anfangsbestandCent: eurToCent(anfangsbestand),
       muenzenZielwertCent: eurToCent(muenzenZielwert),
-      ausgabenCent: ausgabenSumCent,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });
