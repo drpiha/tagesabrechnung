@@ -4,6 +4,15 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Nav } from "@/components/Nav";
 import { CalcForm } from "@/components/CalcForm";
+import { centToEurDe } from "@/lib/calc";
+
+function todayUtc(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -13,11 +22,29 @@ export default async function DashboardPage() {
     where: { id: userId },
     select: { companyName: true, name: true },
   });
+
+  const today = todayUtc();
+  const existing = await prisma.dailyReconciliation.findUnique({
+    where: { userId_date: { userId, date: today } },
+  });
+
+  const initial = existing
+    ? {
+        id: existing.id,
+        date: isoDate(existing.date),
+        tagesumsatz: centToEurDe(existing.tagesumsatz),
+        anfangsbestand: centToEurDe(existing.anfangsbestand),
+        muenzenZielwert: centToEurDe(existing.muenzenZielwert),
+        ausgaben: centToEurDe(existing.ausgaben ?? 0),
+        notes: existing.notes ?? "",
+      }
+    : { date: isoDate(today) };
+
   return (
     <>
       <Nav />
       <main className="max-w-6xl mx-auto px-4 py-6">
-        <CalcForm companyName={u?.companyName ?? null} />
+        <CalcForm companyName={u?.companyName ?? null} initial={initial} />
       </main>
     </>
   );

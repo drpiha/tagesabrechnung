@@ -27,6 +27,7 @@ model DailyReconciliation {
   tagesumsatz     Int      // cent cinsinden
   anfangsbestand  Int      // cent cinsinden
   muenzenZielwert Int      // cent cinsinden
+  ausgaben        Int      @default(0) // cent cinsinden
   banknotesJson   String   // JSON: { "100": n, "50": n, ... }
   coinsJson       String   // JSON: { "200": n, "100": n, ... } (cent)
   gesamtI         Int      // cent

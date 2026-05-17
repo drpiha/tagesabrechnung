@@ -3,13 +3,13 @@ import { useMemo, useState } from "react";
 import { useLocale } from "./LocaleContext";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  BarChart, Bar, Legend
+  BarChart, Bar,
 } from "recharts";
 
 interface Row { date: string; tagesumsatz: number; kassenbestand: number }
 
 export function ReportsClient({ data }: { data: Row[] }) {
-  const { T } = useLocale();
+  const { T, money, locale } = useLocale();
   const [period, setPeriod] = useState<"7" | "30" | "90" | "all">("30");
 
   const filtered = useMemo(() => {
@@ -31,21 +31,22 @@ export function ReportsClient({ data }: { data: Row[] }) {
     return { total, avg, best, worst, count: filtered.length };
   }, [filtered]);
 
-  // Haftanın günlerine göre ortalama ciro
   const weekdayData = useMemo(() => {
-    const days = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+    const days = locale === "de"
+      ? ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+      : ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
     const buckets: { day: string; total: number; count: number }[] =
       days.map(d => ({ day: d, total: 0, count: 0 }));
     for (const r of filtered) {
       const d = new Date(r.date);
-      const idx = (d.getUTCDay() + 6) % 7; // Pzt = 0
+      const idx = (d.getUTCDay() + 6) % 7;
       buckets[idx]!.total += r.tagesumsatz;
       buckets[idx]!.count += 1;
     }
     return buckets.map(b => ({ day: b.day, avg: b.count ? b.total / b.count : 0 }));
-  }, [filtered]);
+  }, [filtered, locale]);
 
-  const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+  const fmt = (n: number) => money(Math.round(n * 100));
 
   return (
     <div className="space-y-6">
@@ -73,7 +74,7 @@ export function ReportsClient({ data }: { data: Row[] }) {
               <div className="text-2xl font-bold mt-1">{stats.count}</div>
             </div>
             <div className="card p-4">
-              <div className="text-xs text-slate-500 uppercase">Toplam Ciro</div>
+              <div className="text-xs text-slate-500 uppercase">{T("total")}</div>
               <div className="text-2xl font-bold mt-1 tabular-nums">{fmt(stats.total)}</div>
             </div>
             <div className="card p-4">
@@ -103,7 +104,7 @@ export function ReportsClient({ data }: { data: Row[] }) {
           </div>
 
           <div className="card p-4">
-            <h2 className="font-semibold mb-3">Haftanın Günlerine Göre Ortalama</h2>
+            <h2 className="font-semibold mb-3">{T("averageDaily")}</h2>
             <div style={{ width: "100%", height: 280 }}>
               <ResponsiveContainer>
                 <BarChart data={weekdayData}>

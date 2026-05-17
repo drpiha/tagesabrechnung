@@ -21,6 +21,7 @@ export default async function HistoryPage() {
     tagesumsatz: r.tagesumsatz,
     anfangsbestand: r.anfangsbestand,
     muenzenZielwert: r.muenzenZielwert,
+    ausgaben: r.ausgaben ?? 0,
     gesamtI: r.gesamtI,
     gesamtII: r.gesamtII,
     kassenbestand: r.kassenbestand,

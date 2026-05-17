@@ -1,6 +1,5 @@
 "use client";
 import { useState, useMemo } from "react";
-import { centToEurDe } from "@/lib/calc";
 import { useLocale } from "./LocaleContext";
 
 interface Row {
@@ -9,6 +8,7 @@ interface Row {
   tagesumsatz: number;
   anfangsbestand: number;
   muenzenZielwert: number;
+  ausgaben?: number;
   gesamtI: number;
   gesamtII: number;
   kassenbestand: number;
@@ -16,7 +16,7 @@ interface Row {
 }
 
 export function HistoryClient({ rows: initialRows }: { rows: Row[] }) {
-  const { T } = useLocale();
+  const { T, money } = useLocale();
   const [rows, setRows] = useState(initialRows);
   const [q, setQ] = useState("");
 
@@ -34,19 +34,20 @@ export function HistoryClient({ rows: initialRows }: { rows: Row[] }) {
   async function exportXlsx() {
     const XLSX = await import("xlsx");
     const data = rows.map(r => ({
-      Datum: r.date,
-      Tagesumsatz: r.tagesumsatz / 100,
-      Anfangsbestand: r.anfangsbestand / 100,
-      "Münzen-Zielwert": r.muenzenZielwert / 100,
-      "Gesamt I (Banknoten)": r.gesamtI / 100,
-      "Gesamt II (Münzen)": r.gesamtII / 100,
-      Kassenbestand: r.kassenbestand / 100,
-      Notiz: r.notes ?? "",
+      [T("date")]: r.date,
+      [T("tagesumsatz")]: r.tagesumsatz / 100,
+      [T("anfangsbestand")]: r.anfangsbestand / 100,
+      [T("ausgaben")]: (r.ausgaben ?? 0) / 100,
+      [T("muenzenZielwert")]: r.muenzenZielwert / 100,
+      [T("gesamtI")]: r.gesamtI / 100,
+      [T("gesamtII")]: r.gesamtII / 100,
+      [T("kassenbestand")]: r.kassenbestand / 100,
+      [T("notes")]: r.notes ?? "",
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Tagesabrechnung");
-    XLSX.writeFile(wb, `Tagesabrechnung_Verlauf_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `Tagesabrechnung_${new Date().toISOString().slice(0,10)}.xlsx`);
   }
 
   return (
@@ -66,14 +67,14 @@ export function HistoryClient({ rows: initialRows }: { rows: Row[] }) {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
-                <th className="text-left py-2 px-3">Datum</th>
-                <th className="text-right py-2 px-3">Tagesumsatz</th>
-                <th className="text-right py-2 px-3">Anfangsbestand</th>
-                <th className="text-right py-2 px-3">Münzen-Ziel</th>
-                <th className="text-right py-2 px-3">Gesamt I</th>
-                <th className="text-right py-2 px-3">Gesamt II</th>
-                <th className="text-right py-2 px-3">Kassenbestand</th>
-                <th className="text-left py-2 px-3">Notiz</th>
+                <th className="text-left py-2 px-3">{T("date")}</th>
+                <th className="text-right py-2 px-3">{T("tagesumsatz")}</th>
+                <th className="text-right py-2 px-3">{T("anfangsbestand")}</th>
+                <th className="text-right py-2 px-3">{T("ausgaben")}</th>
+                <th className="text-right py-2 px-3">{T("gesamtI")}</th>
+                <th className="text-right py-2 px-3">{T("gesamtII")}</th>
+                <th className="text-right py-2 px-3">{T("kassenbestand")}</th>
+                <th className="text-left py-2 px-3">{T("notes")}</th>
                 <th className="py-2 px-3"></th>
               </tr>
             </thead>
@@ -81,12 +82,12 @@ export function HistoryClient({ rows: initialRows }: { rows: Row[] }) {
               {filtered.map(r => (
                 <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50">
                   <td className="py-2 px-3 font-medium">{r.date}</td>
-                  <td className="text-right py-2 px-3 tabular-nums">{centToEurDe(r.tagesumsatz)} €</td>
-                  <td className="text-right py-2 px-3 tabular-nums">{centToEurDe(r.anfangsbestand)} €</td>
-                  <td className="text-right py-2 px-3 tabular-nums">{centToEurDe(r.muenzenZielwert)} €</td>
-                  <td className="text-right py-2 px-3 tabular-nums">{centToEurDe(r.gesamtI)} €</td>
-                  <td className="text-right py-2 px-3 tabular-nums">{centToEurDe(r.gesamtII)} €</td>
-                  <td className="text-right py-2 px-3 tabular-nums font-semibold">{centToEurDe(r.kassenbestand)} €</td>
+                  <td className="text-right py-2 px-3 tabular-nums">{money(r.tagesumsatz)}</td>
+                  <td className="text-right py-2 px-3 tabular-nums">{money(r.anfangsbestand)}</td>
+                  <td className="text-right py-2 px-3 tabular-nums">{money(r.ausgaben ?? 0)}</td>
+                  <td className="text-right py-2 px-3 tabular-nums">{money(r.gesamtI)}</td>
+                  <td className="text-right py-2 px-3 tabular-nums">{money(r.gesamtII)}</td>
+                  <td className="text-right py-2 px-3 tabular-nums font-semibold">{money(r.kassenbestand)}</td>
                   <td className="py-2 px-3 text-slate-600 max-w-xs truncate">{r.notes}</td>
                   <td className="py-2 px-3">
                     <button onClick={() => del(r.id)} className="text-red-600 hover:underline text-xs">{T("delete")}</button>

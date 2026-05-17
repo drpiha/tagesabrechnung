@@ -1,135 +1,133 @@
 "use client";
-import { centToEurDe, type CalcResult } from "@/lib/calc";
+import { type CalcResult } from "@/lib/calc";
 import { useLocale } from "./LocaleContext";
 
 interface Props {
   result: CalcResult;
   date?: string;
+  time?: string;
   companyName?: string | null;
   tagesumsatzCent: number;
   anfangsbestandCent: number;
+  ausgabenCent?: number;
 }
 
-const BANKNOTE_LABELS = [
-  { c: 50000, l: "500,00 €" },
-  { c: 20000, l: "200,00 €" },
-  { c: 10000, l: "100,00 €" },
-  { c:  5000, l:  "50,00 €" },
-  { c:  2000, l:  "20,00 €" },
-  { c:  1000, l:  "10,00 €" },
-  { c:   500, l:   "5,00 €" },
-];
-const COIN_LABELS = [
-  { c: 200, l: "2,00 €"  },
-  { c: 100, l: "1,00 €"  },
-  { c:  50, l: "0,50 €"  },
-  { c:  20, l: "0,20 €"  },
-  { c:  10, l: "0,10 €"  },
-  { c:   5, l: "0,05 €"  },
-  { c:   1, l: "0,01 €"  },
-];
+const BANKNOTE_VALUES = [50000, 20000, 10000, 5000, 2000, 1000, 500];
+const COIN_VALUES = [200, 100, 50, 20, 10, 5, 1];
 
-export function TagesabrechnungTable({ result, date, companyName, tagesumsatzCent, anfangsbestandCent }: Props) {
-  const { T } = useLocale();
+export function TagesabrechnungTable({
+  result, date, time, companyName, tagesumsatzCent, anfangsbestandCent, ausgabenCent = 0,
+}: Props) {
+  const { T, money } = useLocale();
+  const totalEinnahmen = result.gesamtICent + result.gesamtIICent;
   return (
-    <div className="space-y-6">
-      <div className="card p-6">
-        <div className="text-center mb-4">
-          <h2 className="text-xl font-bold text-slate-900">Tagesabrechnung</h2>
-          {companyName && <div className="text-slate-600 mt-1">Firma: {companyName}</div>}
-          {date && <div className="text-slate-500 text-sm">Datum: {date}</div>}
+    <div className="space-y-5">
+      <div className="card p-5">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">{T("addNew")}</h2>
+          <div className="mt-1 flex justify-center gap-x-6 text-sm text-slate-600">
+            {companyName && <span>{T("company")}: <b>{companyName}</b></span>}
+            {date && <span>{T("date")}: <b>{date}</b></span>}
+            {time && <span>{T("time")}: <b>{time}</b></span>}
+          </div>
         </div>
       </div>
 
-      <div className="card p-6">
-        <h3 className="font-semibold text-slate-800 mb-3">1. {T("banknotes")}</h3>
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600">
+      <div className="card p-5">
+        <h3 className="font-semibold text-slate-800 mb-3">{T("banknotes")}</h3>
+        <table className="w-full text-sm border border-slate-300">
+          <thead className="bg-slate-100 text-slate-700">
             <tr>
-              <th className="text-left py-2 px-3">€ Schein</th>
-              <th className="text-right py-2 px-3">Stück</th>
-              <th className="text-right py-2 px-3">Gesamt €</th>
-              <th className="w-16 py-2 px-3">Kontrolle I</th>
-              <th className="w-16 py-2 px-3">Kontrolle II</th>
+              <th className="text-left py-2 px-3 border border-slate-300 w-32">{T("bill")}</th>
+              <th className="text-right py-2 px-3 border border-slate-300 w-20">{T("stueck")}</th>
+              <th className="text-right py-2 px-3 border border-slate-300">{T("total")}</th>
+              <th className="py-2 px-3 border border-slate-300 w-24">{T("control")} I</th>
+              <th className="py-2 px-3 border border-slate-300 w-24">{T("control")} II</th>
             </tr>
           </thead>
           <tbody>
-            {BANKNOTE_LABELS.map(({ c, l }) => {
+            {BANKNOTE_VALUES.map((c) => {
               const cnt = result.banknotes[c] ?? 0;
-              const total = cnt * c;
               return (
-                <tr key={c} className="border-t border-slate-100">
-                  <td className="py-2 px-3">{l}</td>
-                  <td className="text-right py-2 px-3 tabular-nums">{cnt}</td>
-                  <td className="text-right py-2 px-3 tabular-nums">{centToEurDe(total)} €</td>
-                  <td></td><td></td>
+                <tr key={c}>
+                  <td className="py-2 px-3 border border-slate-300">{money(c)}</td>
+                  <td className="text-right py-2 px-3 border border-slate-300 tabular-nums">{cnt}</td>
+                  <td className="text-right py-2 px-3 border border-slate-300 tabular-nums">{money(cnt * c)}</td>
+                  <td className="border border-slate-300"></td>
+                  <td className="border border-slate-300"></td>
                 </tr>
               );
             })}
-            <tr className="border-t-2 border-slate-300 font-semibold bg-slate-50">
-              <td className="py-2 px-3">Gesamt I</td>
-              <td></td>
-              <td className="text-right py-2 px-3 tabular-nums">{centToEurDe(result.gesamtICent)} €</td>
-              <td></td><td></td>
+            <tr className="bg-slate-50 font-semibold">
+              <td className="py-2 px-3 border border-slate-300">{T("gesamtI")}</td>
+              <td className="border border-slate-300"></td>
+              <td className="text-right py-2 px-3 border border-slate-300 tabular-nums">{money(result.gesamtICent)}</td>
+              <td className="border border-slate-300"></td>
+              <td className="border border-slate-300"></td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <div className="card p-6">
-        <h3 className="font-semibold text-slate-800 mb-3">2. {T("coins")}</h3>
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-600">
+      <div className="card p-5">
+        <h3 className="font-semibold text-slate-800 mb-3">{T("coins")}</h3>
+        <table className="w-full text-sm border border-slate-300">
+          <thead className="bg-slate-100 text-slate-700">
             <tr>
-              <th className="text-left py-2 px-3">€ Münze</th>
-              <th className="text-right py-2 px-3">Stück</th>
-              <th className="text-right py-2 px-3">Gesamt €</th>
-              <th className="w-16 py-2 px-3">Kontrolle I</th>
-              <th className="w-16 py-2 px-3">Kontrolle II</th>
+              <th className="text-left py-2 px-3 border border-slate-300 w-32">{T("coin")}</th>
+              <th className="text-right py-2 px-3 border border-slate-300 w-20">{T("stueck")}</th>
+              <th className="text-right py-2 px-3 border border-slate-300">{T("total")}</th>
+              <th className="py-2 px-3 border border-slate-300 w-24">{T("control")} I</th>
+              <th className="py-2 px-3 border border-slate-300 w-24">{T("control")} II</th>
             </tr>
           </thead>
           <tbody>
-            {COIN_LABELS.map(({ c, l }) => {
+            {COIN_VALUES.map((c) => {
               const cnt = result.coins[c] ?? 0;
-              const total = cnt * c;
               return (
-                <tr key={c} className="border-t border-slate-100">
-                  <td className="py-2 px-3">{l}</td>
-                  <td className="text-right py-2 px-3 tabular-nums">{cnt}</td>
-                  <td className="text-right py-2 px-3 tabular-nums">{centToEurDe(total)} €</td>
-                  <td></td><td></td>
+                <tr key={c}>
+                  <td className="py-2 px-3 border border-slate-300">{money(c)}</td>
+                  <td className="text-right py-2 px-3 border border-slate-300 tabular-nums">{cnt}</td>
+                  <td className="text-right py-2 px-3 border border-slate-300 tabular-nums">{money(cnt * c)}</td>
+                  <td className="border border-slate-300"></td>
+                  <td className="border border-slate-300"></td>
                 </tr>
               );
             })}
-            <tr className="border-t-2 border-slate-300 font-semibold bg-slate-50">
-              <td className="py-2 px-3">Gesamt II</td>
-              <td></td>
-              <td className="text-right py-2 px-3 tabular-nums">{centToEurDe(result.gesamtIICent)} €</td>
-              <td></td><td></td>
+            <tr className="bg-slate-50 font-semibold">
+              <td className="py-2 px-3 border border-slate-300">{T("gesamtII")}</td>
+              <td className="border border-slate-300"></td>
+              <td className="text-right py-2 px-3 border border-slate-300 tabular-nums">{money(result.gesamtIICent)}</td>
+              <td className="border border-slate-300"></td>
+              <td className="border border-slate-300"></td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <div className="card p-6">
-        <h3 className="font-semibold text-slate-800 mb-3">3. Finanzielle Zusammenfassung</h3>
-        <table className="w-full text-sm">
+      <div className="card p-5">
+        <h3 className="font-semibold text-slate-800 mb-3">{T("summary")}</h3>
+        <table className="w-full text-sm border border-slate-300">
           <tbody>
-            <tr className="border-t border-slate-100">
-              <td className="py-2 px-3 text-slate-700">Total Einnahmen (I+II)</td>
-              <td className="text-right py-2 px-3 tabular-nums font-medium">{centToEurDe(result.gesamtICent + result.gesamtIICent)} €</td>
+            <tr className="bg-slate-100">
+              <td className="py-2 px-3 border border-slate-300 font-semibold">{T("totalEinnahmen")}</td>
+              <td className="text-right py-2 px-3 border border-slate-300 tabular-nums font-semibold">{money(totalEinnahmen)}</td>
             </tr>
-            <tr className="border-t border-slate-100">
-              <td className="py-2 px-3 text-slate-700">Anfangbestand · Wechselgeld vom Vortag</td>
-              <td className="text-right py-2 px-3 tabular-nums">{centToEurDe(anfangsbestandCent)} €</td>
+            <tr>
+              <td className="py-2 px-3 border border-slate-300">− {T("anfangsbestand")}</td>
+              <td className="text-right py-2 px-3 border border-slate-300 tabular-nums">{money(anfangsbestandCent)}</td>
             </tr>
-            <tr className="border-t border-slate-100">
-              <td className="py-2 px-3 text-slate-700">Tagesumsatz</td>
-              <td className="text-right py-2 px-3 tabular-nums">{centToEurDe(tagesumsatzCent)} €</td>
+            <tr>
+              <td className="py-2 px-3 border border-slate-300">+ {T("ausgaben")}</td>
+              <td className="text-right py-2 px-3 border border-slate-300 tabular-nums">{money(ausgabenCent)}</td>
             </tr>
-            <tr className="border-t-2 border-slate-300 font-semibold bg-slate-50">
-              <td className="py-2 px-3">Kassenbestand bei Geschäftsabschluss</td>
-              <td className="text-right py-2 px-3 tabular-nums">{centToEurDe(result.kassenbestandCent)} €</td>
+            <tr>
+              <td className="py-2 px-3 border border-slate-300">= {T("tagesumsatz")}</td>
+              <td className="text-right py-2 px-3 border border-slate-300 tabular-nums">{money(tagesumsatzCent)}</td>
+            </tr>
+            <tr className="bg-slate-100 font-bold">
+              <td className="py-2 px-3 border border-slate-300">{T("kassenbestand")}</td>
+              <td className="text-right py-2 px-3 border border-slate-300 tabular-nums">{money(result.kassenbestandCent)}</td>
             </tr>
           </tbody>
         </table>

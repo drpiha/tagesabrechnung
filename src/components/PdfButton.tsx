@@ -1,92 +1,166 @@
 "use client";
-import { centToEurDe, type CalcResult } from "@/lib/calc";
+import { type CalcResult } from "@/lib/calc";
 import { useLocale } from "./LocaleContext";
+import { formatMoney, CURRENCY_SYMBOL } from "@/lib/i18n";
 
 interface Props {
   result: CalcResult;
   date: string;
+  time?: string;
   companyName?: string | null;
   tagesumsatzCent: number;
   anfangsbestandCent: number;
+  ausgabenCent?: number;
+  notes?: string;
 }
 
+const BANKNOTE_VALUES = [50000, 20000, 10000, 5000, 2000, 1000, 500];
+const COIN_VALUES = [200, 100, 50, 20, 10, 5, 1];
+
 export function PdfButton(props: Props) {
-  const { T } = useLocale();
+  const { T, currency } = useLocale();
+  // PDF is always rendered in German (it's a GoBD document for German tax authorities).
+  // We use German labels regardless of UI locale.
+  const pdfLocale = "de" as const;
 
   async function exportPdf() {
     const jsPDFmod = await import("jspdf");
     await import("jspdf-autotable");
     const { jsPDF } = jsPDFmod as any;
     const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const left = 40, right = 555;
+    const pageWidth = 595;
+    const left = 40;
+    const right = pageWidth - 40;
 
-    doc.setFont("helvetica", "bold").setFontSize(16);
-    doc.text("Tagesabrechnung", 297, 50, { align: "center" });
+    const sym = CURRENCY_SYMBOL[currency];
+    const fmt = (cent: number) => formatMoney(cent, currency, pdfLocale);
+
+    // --- Header ---
+    doc.setFont("helvetica", "bold").setFontSize(15);
+    doc.text("Tagesabrechnung", pageWidth / 2, 50, { align: "center" });
     doc.setFont("helvetica", "normal").setFontSize(10);
-    if (props.companyName) doc.text(`Firma: ${props.companyName}`, left, 75);
-    doc.text(`Datum: ${props.date}`, right, 75, { align: "right" });
+    doc.text(`Firma: ${props.companyName ?? "—"}`, left, 78);
+    const dateText = props.time ? `Datum: ${props.date}   Uhrzeit: ${props.time}` : `Datum: ${props.date}`;
+    doc.text(dateText, right, 78, { align: "right" });
 
-    const banknotes = [
-      [50000,"500,00 €"],[20000,"200,00 €"],[10000,"100,00 €"],
-      [5000,"50,00 €"],[2000,"20,00 €"],[1000,"10,00 €"],[500,"5,00 €"]
-    ] as const;
-    const coins = [
-      [200,"2,00 €"],[100,"1,00 €"],[50,"0,50 €"],
-      [20,"0,20 €"],[10,"0,10 €"],[5,"0,05 €"],[1,"0,01 €"]
-    ] as const;
+    // --- Common table style ---
+    const headStyles = { fillColor: [240, 240, 240] as any, textColor: 20, fontStyle: "bold" as const, lineColor: [0,0,0] as any, lineWidth: 0.5 };
+    const bodyStyles = { textColor: 20, lineColor: [180,180,180] as any, lineWidth: 0.3 };
+    const tableTheme = "grid" as const;
 
+    // --- Banknotes table ---
     (doc as any).autoTable({
-      startY: 95,
-      head: [["€ Schein","Stück","Gesamt €","Kontrolle I","Kontrolle II"]],
+      startY: 100,
+      theme: tableTheme,
+      head: [[`${sym} Schein`, "Stück", "Gesamt", "Kontrolle I", "Kontrolle II"]],
       body: [
-        ...banknotes.map(([c,l]) => [
-          l,
+        ...BANKNOTE_VALUES.map((c) => [
+          fmt(c),
           String(props.result.banknotes[c] ?? 0),
-          centToEurDe((props.result.banknotes[c] ?? 0) * c) + " €",
-          "", ""
+          fmt((props.result.banknotes[c] ?? 0) * c),
+          "", "",
         ]),
-        [{content:"Gesamt I", styles:{fontStyle:"bold"}}, "", {content: centToEurDe(props.result.gesamtICent)+" €", styles:{fontStyle:"bold", halign:"right"}}, "", ""]
+        [
+          { content: "Gesamt I", styles: { fontStyle: "bold" } },
+          "",
+          { content: fmt(props.result.gesamtICent), styles: { fontStyle: "bold", halign: "right" } },
+          "", "",
+        ],
       ],
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [79, 87, 255] },
-      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } }
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles,
+      bodyStyles,
+      columnStyles: {
+        0: { cellWidth: 90 },
+        1: { halign: "right", cellWidth: 60 },
+        2: { halign: "right", cellWidth: 110 },
+        3: { cellWidth: 110 },
+        4: { cellWidth: 110 },
+      },
+      margin: { left, right: 40 },
     });
 
-    let y = (doc as any).lastAutoTable.finalY + 20;
+    let y = (doc as any).lastAutoTable.finalY + 14;
+
+    // --- Coins table ---
     (doc as any).autoTable({
       startY: y,
-      head: [["€ Münze","Stück","Gesamt €","Kontrolle I","Kontrolle II"]],
+      theme: tableTheme,
+      head: [[`${sym} Münze`, "Stück", "Gesamt", "Kontrolle I", "Kontrolle II"]],
       body: [
-        ...coins.map(([c,l]) => [
-          l,
+        ...COIN_VALUES.map((c) => [
+          fmt(c),
           String(props.result.coins[c] ?? 0),
-          centToEurDe((props.result.coins[c] ?? 0) * c) + " €",
-          "", ""
+          fmt((props.result.coins[c] ?? 0) * c),
+          "", "",
         ]),
-        [{content:"Gesamt II", styles:{fontStyle:"bold"}}, "", {content: centToEurDe(props.result.gesamtIICent)+" €", styles:{fontStyle:"bold", halign:"right"}}, "", ""]
+        [
+          { content: "Gesamt II", styles: { fontStyle: "bold" } },
+          "",
+          { content: fmt(props.result.gesamtIICent), styles: { fontStyle: "bold", halign: "right" } },
+          "", "",
+        ],
       ],
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [79, 87, 255] },
-      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } }
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles,
+      bodyStyles,
+      columnStyles: {
+        0: { cellWidth: 90 },
+        1: { halign: "right", cellWidth: 60 },
+        2: { halign: "right", cellWidth: 110 },
+        3: { cellWidth: 110 },
+        4: { cellWidth: 110 },
+      },
+      margin: { left, right: 40 },
     });
 
-    y = (doc as any).lastAutoTable.finalY + 20;
+    y = (doc as any).lastAutoTable.finalY + 14;
+
+    // --- Financial Summary (paper-template flow) ---
+    const totalEinnahmen = props.result.gesamtICent + props.result.gesamtIICent;
     (doc as any).autoTable({
       startY: y,
-      head: [["Finanzielle Zusammenfassung", "€"]],
+      theme: tableTheme,
+      head: [["Finanzielle Zusammenfassung", sym]],
       body: [
-        ["Total Einnahmen (I+II)", centToEurDe(props.result.gesamtICent + props.result.gesamtIICent) + " €"],
-        ["Anfangbestand · Wechselgeld vom Vortag", centToEurDe(props.anfangsbestandCent) + " €"],
-        ["Tagesumsatz", centToEurDe(props.tagesumsatzCent) + " €"],
-        [{content:"Kassenbestand bei Geschäftsabschluss", styles:{fontStyle:"bold"}}, {content: centToEurDe(props.result.kassenbestandCent)+" €", styles:{fontStyle:"bold", halign:"right"}}]
+        [
+          { content: "Total Einnahmen (I + II)", styles: { fontStyle: "bold" } },
+          { content: fmt(totalEinnahmen), styles: { fontStyle: "bold", halign: "right" } },
+        ],
+        ["−  Anfangsbestand · Wechselgeld vom Vortag", { content: fmt(props.anfangsbestandCent), styles: { halign: "right" } }],
+        ["+  Ausgaben", { content: fmt(props.ausgabenCent ?? 0), styles: { halign: "right" } }],
+        ["=  Tagesumsatz", { content: fmt(props.tagesumsatzCent), styles: { halign: "right" } }],
+        [
+          { content: "Kassenbestand bei Geschäftsabschluss", styles: { fontStyle: "bold", fillColor: [240,240,240] } },
+          { content: fmt(props.result.kassenbestandCent), styles: { fontStyle: "bold", halign: "right", fillColor: [240,240,240] } },
+        ],
       ],
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [79, 87, 255] },
-      columnStyles: { 1: { halign: "right" } }
+      styles: { fontSize: 9, cellPadding: 5 },
+      headStyles,
+      bodyStyles,
+      columnStyles: { 1: { halign: "right", cellWidth: 130 } },
+      margin: { left, right: 40 },
     });
 
-    doc.setFontSize(8).setTextColor(120);
-    doc.text("Tagesabrechnung – generiert mit dem Kassenmodul · " + new Date().toLocaleString("de-DE"), 297, 820, { align: "center" });
+    // --- Notes (optional) ---
+    if (props.notes && props.notes.trim()) {
+      y = (doc as any).lastAutoTable.finalY + 16;
+      doc.setFont("helvetica", "bold").setFontSize(9);
+      doc.text("Notiz:", left, y);
+      doc.setFont("helvetica", "normal");
+      const lines = doc.splitTextToSize(props.notes, right - left);
+      doc.text(lines, left, y + 12);
+    }
+
+    // --- Signature line ---
+    y = (doc as any).lastAutoTable.finalY + 50;
+    if (y < 780) {
+      doc.setDrawColor(120).setLineWidth(0.5);
+      doc.line(left, y, left + 200, y);
+      doc.setFont("helvetica", "normal").setFontSize(8).setTextColor(80);
+      doc.text("Unterschrift", left, y + 12);
+    }
+
     doc.save(`Tagesabrechnung_${props.date}.pdf`);
   }
 

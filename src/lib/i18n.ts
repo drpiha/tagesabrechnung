@@ -1,9 +1,16 @@
 export type Locale = "tr" | "de";
+export type Currency = "EUR" | "USD" | "TRY";
+
+export const CURRENCY_SYMBOL: Record<Currency, string> = {
+  EUR: "€",
+  USD: "$",
+  TRY: "₺",
+};
 
 export const dict = {
   tr: {
-    appName: "Tagesabrechnung",
-    tagline: "Almanca Günlük Kasa Mutabakatı",
+    appName: "Günlük Kasa",
+    tagline: "Günlük Kasa Mutabakatı",
     login: "Giriş",
     signup: "Kayıt Ol",
     logout: "Çıkış",
@@ -18,9 +25,11 @@ export const dict = {
     settings: "Ayarlar",
     today: "Bugün",
     date: "Tarih",
-    tagesumsatz: "Günlük Ciro (Tagesumsatz)",
-    anfangsbestand: "Başlangıç Tutarı (Anfangsbestand / Wechselgeld)",
-    muenzenZielwert: "Hedef Bozuk Para (Münzen-Zielwert)",
+    time: "Saat",
+    tagesumsatz: "Günlük Ciro",
+    anfangsbestand: "Başlangıç Tutarı",
+    muenzenZielwert: "Hedef Bozuk Para",
+    ausgaben: "Giderler",
     calculate: "Hesapla",
     save: "Kaydet",
     saved: "Kaydedildi",
@@ -30,13 +39,13 @@ export const dict = {
     edit: "Düzenle",
     total: "Toplam",
     totalCash: "Toplam Nakit",
-    banknotes: "Banknotlar (€ Schein)",
-    coins: "Madeni Paralar (€ Münze)",
-    summary: "Mali Özet (Finanzielle Zusammenfassung)",
-    gesamtI: "Gesamt I (Banknoten)",
-    gesamtII: "Gesamt II (Münzen)",
-    kassenbestand: "Kassenbestand bei Geschäftsabschluss",
-    totalEinnahmen: "Total Einnahmen (I+II)",
+    banknotes: "Banknotlar",
+    coins: "Madeni Paralar",
+    summary: "Mali Özet",
+    gesamtI: "Banknot Toplamı",
+    gesamtII: "Madeni Para Toplamı",
+    kassenbestand: "Gün Sonu Kasa Bakiyesi",
+    totalEinnahmen: "Toplam Gelir (Banknot + Madeni)",
     stueck: "Adet",
     notes: "Not",
     download: "İndir",
@@ -60,12 +69,13 @@ export const dict = {
     confirmDelete: "Bu kaydı silmek istediğinize emin misiniz?",
     welcome: "Hoş geldiniz",
     language: "Dil",
+    currency: "Para Birimi",
     profile: "Profil",
     changePassword: "Parolayı Değiştir",
     currentPassword: "Mevcut Parola",
     newPassword: "Yeni Parola",
     save_settings: "Ayarları Kaydet",
-    addNew: "Yeni Mutabakat",
+    addNew: "Günlük Mutabakat",
     print: "Yazdır",
     totalRecords: "Toplam Kayıt",
     period: "Dönem",
@@ -74,6 +84,12 @@ export const dict = {
     last90: "Son 90 Gün",
     thisMonth: "Bu Ay",
     allTime: "Tüm Zamanlar",
+    enterValues: "Tutarları girin ve hesaplayın.",
+    bill: "Banknot",
+    coin: "Madeni",
+    control: "Kontrol",
+    update: "Güncelle",
+    loadedFromDb: "Bu tarihe ait kayıt yüklendi",
   },
   de: {
     appName: "Tagesabrechnung",
@@ -92,9 +108,11 @@ export const dict = {
     settings: "Einstellungen",
     today: "Heute",
     date: "Datum",
+    time: "Uhrzeit",
     tagesumsatz: "Tagesumsatz",
-    anfangsbestand: "Anfangsbestand / Wechselgeld",
+    anfangsbestand: "Anfangsbestand",
     muenzenZielwert: "Münzen-Zielwert",
+    ausgaben: "Ausgaben",
     calculate: "Berechnen",
     save: "Speichern",
     saved: "Gespeichert",
@@ -104,8 +122,8 @@ export const dict = {
     edit: "Bearbeiten",
     total: "Summe",
     totalCash: "Gesamtsumme",
-    banknotes: "Banknoten (€ Schein)",
-    coins: "Münzen (€ Münze)",
+    banknotes: "Banknoten",
+    coins: "Münzen",
     summary: "Finanzielle Zusammenfassung",
     gesamtI: "Gesamt I (Banknoten)",
     gesamtII: "Gesamt II (Münzen)",
@@ -134,12 +152,13 @@ export const dict = {
     confirmDelete: "Diesen Eintrag wirklich löschen?",
     welcome: "Willkommen",
     language: "Sprache",
+    currency: "Währung",
     profile: "Profil",
     changePassword: "Passwort ändern",
     currentPassword: "Aktuelles Passwort",
     newPassword: "Neues Passwort",
     save_settings: "Einstellungen speichern",
-    addNew: "Neue Abrechnung",
+    addNew: "Tagesabrechnung",
     print: "Drucken",
     totalRecords: "Einträge gesamt",
     period: "Zeitraum",
@@ -148,11 +167,41 @@ export const dict = {
     last90: "Letzte 90 Tage",
     thisMonth: "Aktueller Monat",
     allTime: "Gesamt",
+    enterValues: "Beträge eingeben und berechnen.",
+    bill: "Schein",
+    coin: "Münze",
+    control: "Kontrolle",
+    update: "Aktualisieren",
+    loadedFromDb: "Eintrag für dieses Datum geladen",
   },
 } as const;
 
 export type TKey = keyof typeof dict.tr;
 
 export function t(locale: Locale, key: TKey): string {
-  return dict[locale]?.[key] ?? dict.tr[key];
+  return dict[locale]?.[key] ?? dict.de[key];
+}
+
+/** Cent integer → "1.234,56" or "1,234.56" depending on locale, plus currency symbol. */
+export function formatMoney(cent: number, currency: Currency, locale: Locale): string {
+  const sign = cent < 0 ? "-" : "";
+  const abs = Math.abs(cent);
+  const whole = Math.floor(abs / 100);
+  const frac = abs % 100;
+
+  const useDot = locale === "de" || currency === "EUR" || currency === "TRY";
+  const groupSep = useDot ? "." : ",";
+  const decSep = useDot ? "," : ".";
+
+  const wholeStr = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, groupSep);
+  const num = sign + wholeStr + decSep + frac.toString().padStart(2, "0");
+
+  const sym = CURRENCY_SYMBOL[currency];
+  // Symbol position: USD prefix, EUR/TRY suffix
+  return currency === "USD" ? `${sym}${num}` : `${num} ${sym}`;
+}
+
+/** Format a denomination value (e.g. 5000 cent → "50,00 €"). */
+export function formatDenom(cent: number, currency: Currency, locale: Locale): string {
+  return formatMoney(cent, currency, locale);
 }

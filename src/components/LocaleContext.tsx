@@ -1,27 +1,62 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
-import { type Locale, t, type TKey } from "@/lib/i18n";
+import { type Locale, type Currency, t, type TKey, formatMoney } from "@/lib/i18n";
 
-const Ctx = createContext<{ locale: Locale; setLocale: (l: Locale) => void; T: (k: TKey) => string }>({
-  locale: "tr",
+interface Ctx {
+  locale: Locale;
+  setLocale: (l: Locale) => void;
+  currency: Currency;
+  setCurrency: (c: Currency) => void;
+  T: (k: TKey) => string;
+  money: (cent: number) => string;
+}
+
+const Context = createContext<Ctx>({
+  locale: "de",
   setLocale: () => {},
-  T: (k) => t("tr", k),
+  currency: "EUR",
+  setCurrency: () => {},
+  T: (k) => t("de", k),
+  money: (c) => formatMoney(c, "EUR", "de"),
 });
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("tr");
+  const [locale, setLocaleState] = useState<Locale>("de");
+  const [currency, setCurrencyState] = useState<Currency>("EUR");
 
   useEffect(() => {
-    const stored = (typeof window !== "undefined" && localStorage.getItem("locale")) as Locale | null;
-    if (stored === "tr" || stored === "de") setLocaleState(stored);
+    if (typeof window === "undefined") return;
+    const storedLocale = localStorage.getItem("locale") as Locale | null;
+    if (storedLocale === "tr" || storedLocale === "de") setLocaleState(storedLocale);
+    const storedCurrency = localStorage.getItem("currency") as Currency | null;
+    if (storedCurrency === "EUR" || storedCurrency === "USD" || storedCurrency === "TRY") {
+      setCurrencyState(storedCurrency);
+    }
   }, []);
 
   const setLocale = (l: Locale) => {
     setLocaleState(l);
     if (typeof window !== "undefined") localStorage.setItem("locale", l);
   };
+  const setCurrency = (c: Currency) => {
+    setCurrencyState(c);
+    if (typeof window !== "undefined") localStorage.setItem("currency", c);
+  };
 
-  return <Ctx.Provider value={{ locale, setLocale, T: (k) => t(locale, k) }}>{children}</Ctx.Provider>;
+  return (
+    <Context.Provider
+      value={{
+        locale,
+        setLocale,
+        currency,
+        setCurrency,
+        T: (k) => t(locale, k),
+        money: (c) => formatMoney(c, currency, locale),
+      }}
+    >
+      {children}
+    </Context.Provider>
+  );
 }
 
-export const useLocale = () => useContext(Ctx);
+export const useLocale = () => useContext(Context);

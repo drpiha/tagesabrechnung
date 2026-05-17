@@ -18,6 +18,7 @@ export interface CalcInput {
   tagesumsatzCent: number;
   anfangsbestandCent: number;
   muenzenZielwertCent: number;
+  ausgabenCent?: number;
 }
 
 export interface CalcResult {
@@ -29,21 +30,18 @@ export interface CalcResult {
   kassenbestandCent: number;
 }
 
-/** "628,50" / "628.50" / 628.5  -> 62850 (cent). */
 export function eurToCent(value: string | number): number {
   if (typeof value === "number") {
     if (!Number.isFinite(value)) throw new Error("Geçersiz sayı");
     return Math.round(value * 100);
   }
-  const cleaned = String(value).replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
-  // Almanca formatta: 1.234,56 -> 1234.56
-  // Ama "628.50" gibi US formatı için yukarıdaki nokta silme yanlış olur.
-  // Heuristik: virgül varsa Alman formatı, yoksa US formatı.
+  const s = String(value).trim();
+  if (!s) return 0;
   let normalized: string;
-  if (String(value).includes(",")) {
-    normalized = String(value).replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+  if (s.includes(",")) {
+    normalized = s.replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
   } else {
-    normalized = String(value).replace(/\s/g, "");
+    normalized = s.replace(/\s/g, "");
   }
   const n = Number(normalized);
   if (!Number.isFinite(n) || n < 0) throw new Error("Geçersiz tutar: " + value);
@@ -68,7 +66,6 @@ export function centToEurEn(cent: number): string {
   return sign + eStr + "." + c.toString().padStart(2, "0");
 }
 
-/** Banknotları 100, 50, 20, 10, 5 sırasıyla açgözlü dağıt. Kalan cent madeni paraya. */
 function distributeBanknotes(budgetCent: number): { counts: Counts; remainderCent: number } {
   const counts: Counts = { 50000: 0, 20000: 0, 10000: 0, 5000: 0, 2000: 0, 1000: 0, 500: 0 };
   let remaining = budgetCent;
@@ -81,22 +78,23 @@ function distributeBanknotes(budgetCent: number): { counts: Counts; remainderCen
 }
 
 /**
- * Madeni para dağıtımı - dengeli ve gerçekçi.
+ * Madeni para dağıtımı — gerçekçi, dengeli, hafif rastgele.
  *
- * 1) Alt-€ kısmı (totalCent % 100) açgözlü çözülür: 50, 20, 10, 5, 1.
- *    Bu sayede 0.10, 0.05, 0.01 sadece küçük artıklarda kullanılır.
- * 2) Tam €'luk kısım 4 ana denomination'a hedef yüzdelere göre dağıtılır:
- *      2.00 € : %40
- *      1.00 € : %35
- *      0.50 € : %15  (her zaman ÇİFT adet -> tam € değer)
- *      0.20 € : %10  (kalan tam €'lar -> n20 = €kalan * 5)
- * 3) Tüm aritmetik integer cent; toplam == girdi garanti.
+ * 1) Alt-€ kısmı (0–99 cent) açgözlü dağıtılır: 50, 20, 10, 5, 1.
+ * 2) Tam € kısmı 4 ana denomination arasında rastgele ağırlıklarla dağıtılır:
+ *      2.00 € : %25–%45
+ *      1.00 € : %25–%40
+ *      0.50 € : %10–%20  (ÇİFT adet — tam €)
+ *      0.20 € : %5–%15   (BEŞER — tam €)
+ *    Yuvarlama sonrası kalan tam € en uygun denomination'a eklenir.
+ * 3) En az 2 farklı denomination > 0 garanti edilir (mümkün olduğunda).
+ * 4) Toplam == girdi (integer cent) — sağlamlık kontrolü.
  */
 function distributeCoins(totalCent: number): Counts {
   const counts: Counts = { 200: 0, 100: 0, 50: 0, 20: 0, 10: 0, 5: 0, 1: 0 };
   if (totalCent <= 0) return counts;
 
-  // 1) Alt-€ kısmı: 0-99 cent
+  // 1) Alt-€: 0-99 cent → açgözlü 50, 20, 10, 5, 1
   let sub = totalCent % 100;
   for (const c of [50, 20, 10, 5, 1] as const) {
     if (sub >= c) {
@@ -105,61 +103,117 @@ function distributeCoins(totalCent: number): Counts {
       sub -= n * c;
     }
   }
-  // 2) Tam €'luk kısım
-  let totalEuros = Math.floor(totalCent / 100);
-  if (totalEuros <= 0) return counts;
 
-  // 0.50€: hedef %15, ÇİFT sayıda olacak (toplam = tam €)
-  let n50 = 2 * Math.round((totalEuros * 15) / 100);
-  // En az 0, çok olursa kıs
-  while (n50 / 2 > totalEuros) n50 -= 2;
-  if (n50 < 0) n50 = 0;
-  counts[50] += n50;
-  totalEuros -= n50 / 2;
+  let euros = Math.floor(totalCent / 100);
+  if (euros <= 0) {
+    enforceMinTwoDenominations(counts, totalCent);
+    return counts;
+  }
 
-  // 2.00€: hedef %40 (orijinal toplamın %40'ı), çift değil
-  let n2 = Math.round((totalEuros * 40) / 100 / 2) * 2 / 2;
-  // basit: floor((totalEuros * 0.40) / 2) için yuvarla
-  n2 = Math.round((totalEuros * 0.40) / 2);
-  if (n2 < 0) n2 = 0;
-  if (n2 * 2 > totalEuros) n2 = Math.floor(totalEuros / 2);
-  counts[200] += n2;
-  totalEuros -= n2 * 2;
+  // 2) Tam € kısmı için rastgele ağırlıklar
+  // Her ağırlık [min, max] aralığında uniform rastgele; sonra ölçeklenir.
+  const rand = (min: number, max: number) => min + Math.random() * (max - min);
+  let w200 = rand(0.25, 0.45);
+  let w100 = rand(0.25, 0.40);
+  let w50  = rand(0.10, 0.20);
+  let w20  = rand(0.05, 0.15);
+  const sumW = w200 + w100 + w50 + w20;
+  w200 /= sumW; w100 /= sumW; w50 /= sumW; w20 /= sumW;
 
-  // 1.00€: kalan €'nun yaklaşık %78'i (yani 0.35 / (0.35+0.10))
-  let n1 = Math.round(totalEuros * 0.78);
-  if (n1 < 0) n1 = 0;
-  if (n1 > totalEuros) n1 = totalEuros;
-  counts[100] += n1;
-  totalEuros -= n1;
+  // 0.50 € ÇİFT adet: en yakın çift adede yuvarla (her çift = 1 €)
+  let pairs50 = Math.round(euros * w50);          // pair count = €
+  if (pairs50 < 0) pairs50 = 0;
+  if (pairs50 > euros) pairs50 = euros;
 
-  // Kalan tüm €'lar 0.20€'lara → 1 € = 5 adet
-  counts[20] += totalEuros * 5;
+  // 0.20 € BEŞER adet: her quintet = 1 €
+  let quints20 = Math.round(euros * w20);
+  if (quints20 < 0) quints20 = 0;
+  if (pairs50 + quints20 > euros) quints20 = Math.max(0, euros - pairs50);
 
-  // Sağlamlık kontrolü
+  // 2.00 € (her piyes 2 €) — kalan €'ları geçmeyecek şekilde
+  const remainingEurosAfter50_20 = euros - pairs50 - quints20;
+  let n200 = Math.floor((remainingEurosAfter50_20 * (w200 / (w200 + w100))) / 2);
+  if (n200 < 0) n200 = 0;
+  if (n200 * 2 > remainingEurosAfter50_20) n200 = Math.floor(remainingEurosAfter50_20 / 2);
+
+  // 1.00 € — kalan tam €
+  const n100 = remainingEurosAfter50_20 - n200 * 2;
+
+  counts[200] += n200;
+  counts[100] += n100;
+  counts[50]  += pairs50 * 2;
+  counts[20]  += quints20 * 5;
+
+  // 3) Sağlamlık kontrolü
   const sum =
-    counts[200] * 200 +
-    counts[100] * 100 +
-    counts[50] * 50 +
-    counts[20] * 20 +
-    counts[10] * 10 +
-    counts[5] * 5 +
-    counts[1] * 1;
+    counts[200]! * 200 +
+    counts[100]! * 100 +
+    counts[50]!  *  50 +
+    counts[20]!  *  20 +
+    counts[10]!  *  10 +
+    counts[5]!   *   5 +
+    counts[1]!   *   1;
   if (sum !== totalCent) {
     throw new Error(`İç hata: madeni toplam ${sum} != ${totalCent}`);
   }
+
+  // 4) En az 2 farklı denomination > 0 olsun
+  enforceMinTwoDenominations(counts, totalCent);
   return counts;
+}
+
+/**
+ * Eğer sadece tek bir denomination > 0 ise, 1 birimini iki farklı küçük
+ * denomination'a böler. Toplam korunur. (totalCent çok küçükse zorlamaz.)
+ */
+function enforceMinTwoDenominations(counts: Counts, totalCent: number) {
+  const nonzero = Object.keys(counts)
+    .map((k) => parseInt(k, 10))
+    .filter((k) => counts[k]! > 0);
+  if (nonzero.length >= 2) return;
+  if (totalCent < 60) return;
+
+  const d = nonzero[0]!;
+  if (d === 200 && counts[200]! >= 1) {
+    // 2€ → 3×0,50 + 5×0,10 = 150 + 50 = 200
+    counts[200]!--;
+    counts[50] = (counts[50] || 0) + 3;
+    counts[10] = (counts[10] || 0) + 5;
+  } else if (d === 100 && counts[100]! >= 1) {
+    // 1€ → 1×0,50 + 5×0,10 = 50 + 50 = 100
+    counts[100]!--;
+    counts[50] = (counts[50] || 0) + 1;
+    counts[10] = (counts[10] || 0) + 5;
+  } else if (d === 50 && counts[50]! >= 2) {
+    // 2×0,50 → 1×0,50 + 5×0,10 = 50 + 50
+    counts[50]!--;
+    counts[10] = (counts[10] || 0) + 5;
+  } else if (d === 20 && counts[20]! >= 5) {
+    // 5×0,20 → 1×0,50 + 5×0,10 = 50 + 50 = 100
+    counts[20]! -= 5;
+    counts[50] = (counts[50] || 0) + 1;
+    counts[10] = (counts[10] || 0) + 5;
+  } else if (d === 10 && counts[10]! >= 6) {
+    // 6×0,10 → 4×0,10 + 4×0,05 = 40 + 20 = 60
+    counts[10]! -= 2;
+    counts[5] = (counts[5] || 0) + 4;
+  }
 }
 
 export function calculate(input: CalcInput): CalcResult {
   const { tagesumsatzCent, anfangsbestandCent, muenzenZielwertCent } = input;
+  const ausgabenCent = input.ausgabenCent ?? 0;
   if (tagesumsatzCent < 0)     throw new Error("Tagesumsatz negatif olamaz");
   if (anfangsbestandCent < 0)  throw new Error("Anfangsbestand negatif olamaz");
   if (muenzenZielwertCent < 0) throw new Error("Münzen-Zielwert negatif olamaz");
+  if (ausgabenCent < 0)        throw new Error("Ausgaben negatif olamaz");
 
-  const totalCent = tagesumsatzCent + anfangsbestandCent;
+  const totalCent = tagesumsatzCent + anfangsbestandCent - ausgabenCent;
+  if (totalCent < 0) {
+    throw new Error("Gider, gelir+başlangıçtan büyük olamaz");
+  }
   if (muenzenZielwertCent > totalCent) {
-    throw new Error("Münzen-Zielwert toplam kasayı aşamaz");
+    throw new Error("Hedef bozuk para toplam kasayı aşamaz");
   }
 
   const banknoteBudget = totalCent - muenzenZielwertCent;
