@@ -84,6 +84,9 @@ function distributeBanknotes(budgetCent: number): { counts: Counts; remainderCen
   const denoms = ALLOWED_BANKNOTE_CENTS; // [10000, 5000, 2000, 1000, 500]
   const rand = (min: number, max: number) => min + Math.random() * (max - min);
 
+  // 100 € sınırı: kullanıcı talebi — en fazla 2 adet 100 €
+  const MAX_100 = 2;
+
   for (let i = 0; i < denoms.length; i++) {
     const d = denoms[i]!;
     if (remaining < d) continue;
@@ -99,6 +102,7 @@ function distributeBanknotes(budgetCent: number): { counts: Counts; remainderCen
       // her zaman maxFit'in altında kalsın (en az 1 birim küçüklere bırakılsın)
       if (i === 0 && count === maxFit && maxFit > 1) count = maxFit - 1;
     }
+    if (d === 10000 && count > MAX_100) count = MAX_100;
     counts[d] = count;
     remaining -= count * d;
   }
